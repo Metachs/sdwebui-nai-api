@@ -11,13 +11,15 @@ import PIL
 import warnings
 import gzip
 
+#Fix for not saving PNGInfo on saved images, probably a better way but this was the easiest
+
 def add_stealth_pnginfo(params: ImageSaveParams):
     
-    stealth_pnginfo_enabled = shared.opts.data.get("stealth_pnginfo", True)
-    stealth_pnginfo_mode = shared.opts.data.get('stealth_pnginfo_mode', 'alpha')
-    stealth_pnginfo_compressed = shared.opts.data.get("stealth_pnginfo_compression", True)
+    nai_api_png_info = shared.opts.data.get("nai_api_png_info", 'NAI Only')
+    # stealth_pnginfo_mode = shared.opts.data.get('stealth_pnginfo_mode', 'alpha')
+    # stealth_pnginfo_compressed = shared.opts.data.get("stealth_pnginfo_compression", True)
     
-    if not stealth_pnginfo_enabled:
+    if nai_api_png_info == 'Disable':
         return
     if not params.filename.endswith('.png') or params.pnginfo is None:
         return
@@ -38,6 +40,7 @@ def add_stealth_pnginfo(params: ImageSaveParams):
         move('Generation time')
         move('Comment')
         return
+    if nai_api_png_info == 'NAI Only': return
     add_data(params, stealth_pnginfo_mode, stealth_pnginfo_compressed)
 
 

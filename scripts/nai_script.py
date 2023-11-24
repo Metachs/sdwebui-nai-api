@@ -38,7 +38,7 @@ def get_api_key():
 
 
 def on_ui_settings():
-    section = ('nai_api', "NAI Generator")
+    section = ('nai_api', "NAI API Generator")
     def addopt(n,o):
         if not n in shared.opts.data_labels:
             shared.opts.add_option(n,o)           
@@ -48,6 +48,8 @@ def on_ui_settings():
     addopt('nai_api_key', shared.OptionInfo('', "NAI API Key - See https://docs.sillytavern.app/usage/api-connections/novelai/ ", gr.Textbox, section=section))
     
     addopt('nai_api_skip_checks', shared.OptionInfo(False, "Skip NAI account/subscription/Anlas checks.",gr.Checkbox, section=section))
+    
+    addopt('nai_api_png_info', shared.OptionInfo( 'NAI Only', "Stealth PNG Info - Read/Write Stealth PNG info for NAI images only (required to emulate NAI), All Images, or None",gr.Radio, {"choices": ['NAI Only', 'All Images', 'Disable'] }, section=section))
     
     addopt('nai_api_default_sampler', shared.OptionInfo('k_euler', "Fallback Sampler: Used when the sampler doesn't match any sampler available in NAI .",gr.Radio, {"choices": NAI_SAMPLERS }, section=section))
         
