@@ -21,5 +21,5 @@ Most locally run extension are NOT supported, obviously. It does support basic e
 
 #### Unsupported/TODO
 - NAI ControlNet Tools - Not sure how CN works in NAI, not worth worrying about until NAIv3 supports 'em
-- Batch support - This isn't free in the only NAI offering worth paying for, so I haven't bothered 
+- NAI Batch support - This isn't free in the only NAI offering worth paying for, so I haven't bothered. (A1111 Batches are pulled sequentially)
 - Separate Prompts for NAI/Local in Two pass Image2Image mode.
