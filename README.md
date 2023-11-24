@@ -12,7 +12,8 @@ Install using "Extensions > Install from URL" using the repo's URL.
 - Allows much higher precision Inpainting masks, as well as uploading masks from other sources.
 - Automatically translates A1111 format weighted prompts to NovelAI's format eg (1girl:1.1) > {{1girl}} (Values can't be 1:1, but should be close enough)
 - Includes a modified version of the Stealth PNG Info extension to fully support NovelAI's stealth PNG info, for sites that strip metadata.
-- Enforce cost limits to avoid wasting Anlas when you have Opus
+- Optionally Enforces Opus' Free generation limits to avoid wasting Anlas
+- Always download every generated image, with A1111's custom filename support
 
 Most locally run extension are NOT supported, obviously. It does support basic extensions that only modify generation parameters, such as wildcards. Running this with certain extensions on may break things. 
  
