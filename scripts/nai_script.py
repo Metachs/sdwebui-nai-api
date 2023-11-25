@@ -271,7 +271,6 @@ class NAIGENScript(scripts.Script):
                 if dohash and p.batch_size * p.n_iter == 1:  p.enable_hr = False
                 self.images[i] = Image.new("RGBA",(p.width, p.height), color = "black")
         
-
 class NAIGenException(Exception):
     pass
     
@@ -287,7 +286,7 @@ def process_images_patched(p):
 
     script = FindScript(p.scripts)
     
-    if script is None: 
+    if script is None or hasattr(p, "NAI_enable") and not p.NAI_enable: 
         return modules.processing.process_images_pre_patch_4_nai(p)
         
     p.nai_processed=None
@@ -295,14 +294,17 @@ def process_images_patched(p):
     
     if hasattr(p, "per_script_args"):
         args = p.per_script_args.get(script.title(), p.script_args[script.args_from:script.args_to])
-    else:
+    elif hasattr(p, "script_args"):
         args = p.script_args[script.args_from:script.args_to]
+    else: return modules.processing.process_images_pre_patch_4_nai(p)
     
     try:
-        script.initialize()
-        script.patched_process(p, *args)
-        if script.failed: 
-            raise Exception(script.failure)
+        script.initialize()        
+        script.patched_process(p, *args)        
+        if script.failed: raise Exception(script.failure)
+        
+        if script.disabled: return modules.processing.process_images_pre_patch_4_nai(p)
+        
         def process_patched(self,p, **kwargs):
         
             p.scripts.originalprocess(p, **kwargs)

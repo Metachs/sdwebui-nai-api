@@ -111,8 +111,16 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         p.n_iter = 1
 
     def process_inner(self, p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset, **kwargs):
-
-        if not enable or self.disabled: return 
+        if not enable: self.disabled=True
+        if self.disabled: return 
+        
+        model = getattr(p,f'{PREFIX}_'+ 'model',model)
+        smea = getattr(p,f'{PREFIX}_'+ 'smea',smea)
+        sampler = getattr(p,f'{PREFIX}_'+ 'sampler',None) or self.sampler_name        
+        noise_schedule = getattr(p,f'{PREFIX}_'+ 'noise_schedule',noise_schedule)
+        dynamic_thresholding = getattr(p,f'{PREFIX}_'+ 'dynamic_thresholding',dynamic_thresholding)
+        uncond_scale = getattr(p,f'{PREFIX}_'+ 'uncond_scale',uncond_scale)
+        cfg_rescale = getattr(p,f'{PREFIX}_'+ 'cfg_rescale',cfg_rescale)       
         
         p.extra_generation_params[f'{PREFIX} '+ 'enable'] = True 
         if sampler in nai_api.NAI_SAMPLERS : p.extra_generation_params[f'{PREFIX} _sampler'] = sampler
@@ -121,9 +129,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         p.extra_generation_params[f'{PREFIX} '+ 'model'] = model
         p.extra_generation_params[f'{PREFIX} '+ 'smea'] = smea
         p.extra_generation_params[f'{PREFIX} '+ 'uncond_scale'] = uncond_scale
-        p.extra_generation_params[f'{PREFIX} '+ 'cfg_rescale'] = cfg_rescale     
-        
-        sampler = self.sampler_name        
+        p.extra_generation_params[f'{PREFIX} '+ 'cfg_rescale'] = cfg_rescale
         
         def getparams(i):   
             seed =int(p.all_seeds[i])

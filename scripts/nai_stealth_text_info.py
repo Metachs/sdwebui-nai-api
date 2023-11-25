@@ -30,7 +30,8 @@ def add_stealth_pnginfo(params: ImageSaveParams):
         #params.pnginfo = items
         def move(s):
             nonlocal params
-            params.pnginfo[s] = items[s]
+            o = items.get(s,None)
+            if o is not None: params.pnginfo[s] = items[s]
         move('Title')
         move('Description')
         move('Software')

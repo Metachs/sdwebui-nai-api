@@ -117,7 +117,8 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         return [enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local]
         
     def patched_process(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
-        if not enable: return
+        if not enable: self.disabled=True
+        if self.disabled: return 
         self.setup_old(p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
         
     def setup_old(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local):    
@@ -175,6 +176,16 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         if not enable or self.disable: return
         if do_local != 0: self.restore_local(p)
         
+        model = getattr(p,f'{PREFIX}_'+ 'model',model)
+        smea = getattr(p,f'{PREFIX}_'+ 'smea',smea)
+        sampler = getattr(p,f'{PREFIX}_'+ 'sampler',None) or self.sampler_name        
+        noise_schedule = getattr(p,f'{PREFIX}_'+ 'noise_schedule',noise_schedule)
+        dynamic_thresholding = getattr(p,f'{PREFIX}_'+ 'dynamic_thresholding',dynamic_thresholding)
+        uncond_scale = getattr(p,f'{PREFIX}_'+ 'uncond_scale',uncond_scale)
+        cfg_rescale = getattr(p,f'{PREFIX}_'+ 'cfg_rescale',cfg_rescale)        
+        extra_noise = getattr(p,f'{PREFIX}_'+ 'extra_noise',extra_noise)        
+        add_original_image = getattr(p,f'{PREFIX}_'+ 'add_original_image',add_original_image)        
+        
         p.extra_generation_params[f'{PREFIX} enable'] = True
         if sampler.lower() != "auto": p.extra_generation_params[f'{PREFIX} sampler'] = sampler
         p.extra_generation_params[f'{PREFIX} noise_schedule'] = noise_schedule
@@ -191,6 +202,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         p.extra_generation_params[f'{PREFIX} '+ 'add_original_image'] = add_original_image
         p.extra_generation_params[f'{PREFIX} '+ 'extra_noise'] = extra_noise
         p.extra_generation_params[f'{PREFIX} '+ 'img_resize_mode'] = img_resize_mode
+        
             
         extra_noise = max(getattr(p,"extra_noise",0) , extra_noise)        
         mask = p.image_mask or self.mask
@@ -225,3 +237,4 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             p.init_images = self.images
             self.include_nai_init_images_in_results=True
             
+        
