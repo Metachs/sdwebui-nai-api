@@ -123,8 +123,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
     def setup_old(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local):    
         
         if not self.check_api_key():
-            print("Invalid NAI Key")
-            self.disabled = True            
+            self.fail(p,"Invalid NAI Key")
             return
         
         self.setup_sampler_name(p, sampler)
@@ -198,7 +197,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         if mask != None and img_resize_mode < 3:
             mask = images.resize_image(img_resize_mode, mask, p.width, p.height,"Lanczos")
 
-        def getparams(i):   
+        def getparams(i):
             seed =int(p.all_seeds[i])
             
             image= None if (do_local == 1 or p.init_images is None or len(p.init_images) == 0) else  p.init_images[len(p.init_images) % p.batch_size]

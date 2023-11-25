@@ -39,9 +39,7 @@ def get_headers(key):
     }
 def POST(key,parameters, g =False):          
     headers = get_headers(key)
-    strip = re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters))
-    print(f'{strip}')
-
+    parameters = parameters.encode()
     if g: 
         import grequests    
         import requests    
@@ -71,7 +69,7 @@ def tryfloat(value, default = None):
         value = value.strip()
         return float(value)
     except Exception as e:
-        print(f"Invalid Float: {value}")
+        #print(f"Invalid Float: {value}")
         return default
         
 def prompt_has_weight(p):
@@ -214,10 +212,10 @@ def prompt_to_nai(p, parenthesis_only = False):
     
 def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False):
     def clean(p):
-        #TODO: Look for a better way to do this
-        p=re.sub("(?<=[^\"])\"","\\\"" ,p)
+        #TODO: Look for a better way to do this        
+        p=re.sub("(?<=[^\\\\])\"","\\\"" ,p)
         p=re.sub("\r?\n"," " ,p)
-        p=re.sub("\s"," " ,p)
+       ## p=re.sub("\s"," " ,p)
         return p
     prompt=clean(prompt)
     neg=clean(neg)

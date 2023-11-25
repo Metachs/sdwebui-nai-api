@@ -91,15 +91,11 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         if not enable: return
         
         if not self.check_api_key():
-            print("Invalid NAI Key")
-            self.disabled = True            
-            return          
-        self.disabled = False
+            self.fail(p,"Invalid NAI Key")
+            return
             
-        
         self.setup_sampler_name(p, sampler)      
         
-
         if cost_limiter: self.limit_costs(p)
         
         self.adjust_resolution(p)
@@ -111,8 +107,6 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             p.n_iter = p.n_iter * p.batch_size
             p.batch_size = 1
             
-        self.images = []
-
         p.batch_size = p.n_iter * p.batch_size
         p.n_iter = 1
 

@@ -16,9 +16,7 @@ import gzip
 def add_stealth_pnginfo(params: ImageSaveParams):
     
     nai_api_png_info = shared.opts.data.get("nai_api_png_info", 'NAI Only')
-    # stealth_pnginfo_mode = shared.opts.data.get('stealth_pnginfo_mode', 'alpha')
-    # stealth_pnginfo_compressed = shared.opts.data.get("stealth_pnginfo_compression", True)
-    
+
     if nai_api_png_info == 'Disable':
         return
     if not params.filename.endswith('.png') or params.pnginfo is None:
@@ -41,7 +39,7 @@ def add_stealth_pnginfo(params: ImageSaveParams):
         move('Comment')
         return
     if nai_api_png_info == 'NAI Only': return
-    add_data(params, stealth_pnginfo_mode, stealth_pnginfo_compressed)
+    add_data(params, 'alpha', True)
 
 
 def process_nai_geninfo(geninfo, items):

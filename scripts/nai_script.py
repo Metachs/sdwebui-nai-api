@@ -66,6 +66,11 @@ class NAIGENScript(scripts.Script):
         self.texts = []
         self.sampler_name = None
         self.api_connected = False
+        self.disable=False
+        self.failed=False
+        self.failure=""
+        self.running=True
+        
         
     def title(self):
         return self.NAISCRIPTNAME
@@ -121,28 +126,75 @@ class NAIGENScript(scripts.Script):
                 return n
         return shared.opts.data.get('NAI_gen_default_sampler', 'k_euler')
         
+    def initialize(self):
+        self.failed= False
+        self.failure =""
+        self.disabled= False
+        self.images=[]
+        self.hashes=[]
+        self.texts=[]
+        
+    def comment(self, p , c):
+        print (c)
+        if p is None or not hasattr(p, "comment"):return        
+        p.comment(c)    
+        
+    def fail(self, p, c):
+        self.comment(p,c)
+        self.failed=True
+        self.failure = c
+        self.disabled=True
+    
     def limit_costs(self, p, nai_batch = False):
         MAXSIZE = 1048576
         if p.width * p.height > MAXSIZE:
             scale = p.width/p.height
             p.width= int(math.sqrt(MAXSIZE/scale))
             p.height= int(p.width * scale)
-            print(f"Cost Limiter: Reduce dimensions to {p.width} x {p.height}")
+                
+            width = int(p.width/64)*64
+            height = int(p.height/64)*64
+        
+            self.comment(p,f"Cost Limiter: Reduce dimensions to {p.width} x {p.height}")
+            p.comments[f"NAI API {c}"] = c
+            
         if nai_batch and p.batch_size > 1:
             p.n_iter *= p.batch_size
             p.batch_size = 1
-            print(f" Cost Limiter: Disable Batching")
+            self.comment(p,f" Cost Limiter: Disable Batching")
         if p.steps >28: 
             p.steps = 28
-            print(f"Cost Limiter: Reduce steps to {p.steps}")
-
+            self.comment(p,f"Cost Limiter: Reduce steps to {p.steps}")
+    
     def adjust_resolution(self, p):
-        if p.width % 64 == 0 and p.height % 64 == 0: return
-        print(f'Adjusting resolution from {p.width} x {p.height} to {int(p.width/64)*64} {int(p.height/64)*64}- NAI dimensions must be divisible by 64')
-        p.width = int(p.width/64)*64
-        p.height = int(p.height/64)*64
+        #if p.width % 64 == 0 and p.height % 64 == 0 or p.width *p.height > 1792*1728: return
+        
+        width = p.width
+        height = p.height
+        
+        
+        width = int(p.width/64)*64
+        height = int(p.height/64)*64
+        
+        MAXSIZE = 1792*1728
+        
+        if width *height > MAXSIZE:            
+            scale = width/height
+            width= int(math.sqrt(MAXSIZE/scale))
+            height= int(width * scale)
+            width = int(p.width/64)*64
+            height = int(p.height/64)*64
+        
+        if width == p.width and height == p.height: return
+        
+        self.comment(p,f'Adjusted resolution from {p.width} x {p.height} to {width} x {height}- NAI dimensions must be divisible by 64 and below 1792*1728 total resolution')
+        
+        p.width = width
+        p.height = height
+
     
     def convert_to_nai(self, prompt, neg,convert_prompts="Always"):
+        
         if convert_prompts != "Never":
             if convert_prompts == "Always" or prompt_has_weight(prompt): prompt = prompt_to_nai(prompt)
             if convert_prompts == "Always" or prompt_has_weight(prompt): neg = prompt_to_nai(neg)
@@ -177,6 +229,8 @@ class NAIGENScript(scripts.Script):
                 else:
                     self.images.append(None)
                     self.hashes.append(None)
+                    strip = re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters))
+                    self.comment(p,f'{strip}')
                     results.append(POST(key, parameters, g = query_batch_size > 1))
                     resultsidx.append(i)               
                     self.texts.append("")
@@ -192,7 +246,9 @@ class NAIGENScript(scripts.Script):
                 i = resultsidx[ri]
                 image,code =  LOAD(result, parameters)
                 #TODO: Handle time out errors
-                if image is None: continue
+                if image is None: 
+                    self.texts[i] = code
+                    continue
                 if dohash:
                     hash = hashlib.md5(image.tobytes()).hexdigest()
                     self.hashes[i] = hash
@@ -206,9 +262,11 @@ class NAIGENScript(scripts.Script):
 
                 images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix=save_suffix)
                 
-        for i in range( p.iteration*p.batch_size, p.iteration*p.batch_size+p.batch_size):
-            parameters = getparams(i)
+        for i in range(p.iteration*p.batch_size, p.iteration*p.batch_size+p.batch_size):
             if self.images[i] is None:
+                if p.n_iter*p.batch_size == 1:
+                    self.fail(p,f'Failed to retrieve image - Error Code: {self.texts[i]}')
+                else: self.comment(p,f'Failed to retrieve image {i} - Error Code: {self.texts[i]}')
                 print("Image Failed to Load, Giving Up")
                 if dohash and p.batch_size * p.n_iter == 1:  p.enable_hr = False
                 self.images[i] = Image.new("RGBA",(p.width, p.height), color = "black")
@@ -220,37 +278,39 @@ class NAIGenException(Exception):
 def process_images_patched(p):
     def FindScript(scripts):
         if scripts is None:
-            print("No Scripts!")
             return None
         for script in scripts.alwayson_scripts:  
             # isinstance(script, NAIGENScript) stopped worked seemingly at random, possibly after splitting files?
             # Yes apparently each file just re-implements everything it imports, including base classes, like the fucking worst type of c++ macro bullshit and therefore is not an instance of the base class implmented in other files. Whether this is just how Python works, or if it is a quirk of the way extensions are implemented in sdwebui, it is fucking ridiculous.
             # Probably need to look up how python imports work, clearly it is not anything sane, rational or predictable, like everything else in this trainwreck of a language
-            if hasattr(script, "NAISCRIPTNAME"): return script        
+            if hasattr(script, "NAISCRIPTNAME"): return script
 
     script = FindScript(p.scripts)
     
     if script is None: 
-        print("NAIGENScript is None")        
         return modules.processing.process_images_pre_patch_4_nai(p)
         
     p.nai_processed=None
     p.scripts.originalprocess = p.scripts.process
+    
     if hasattr(p, "per_script_args"):
         args = p.per_script_args.get(script.title(), p.script_args[script.args_from:script.args_to])
-    else: 
+    else:
         args = p.script_args[script.args_from:script.args_to]
     
     try:
+        script.initialize()
         script.patched_process(p, *args)
-        
+        if script.failed: 
+            raise Exception(script.failure)
         def process_patched(self,p, **kwargs):
+        
             p.scripts.originalprocess(p, **kwargs)
-            try:
-                script.process_inner(p, *args) # Sets p.nai_processed if images have been processed
-            except Exception as e:
-                import modules.errors as errors
-                errors.display(e, 'executing callback: {script} {process_batch}')            
+            
+            script.process_inner(p, *args) # Sets p.nai_processed if images have been processed
+            
+            if script.failed: raise Exception(script.failure)
+                
             if hasattr(p,"nai_processed") and p.nai_processed is not None:
                 # Make sure post process is called, at least one extension uses it to clean up from things done in process. 
                 # This may also cause problems since batch process isn't called, but this seems less likely.
@@ -260,6 +320,7 @@ def process_images_patched(p):
         p.scripts.process= process_patched.__get__(p.scripts, scripts.ScriptRunner)
         
         results = modules.processing.process_images_pre_patch_4_nai(p)
+        
         if getattr(script,'include_nai_init_images_in_results',False):
             results.all_subseeds += script.all_subseeds 
             results.all_seeds += script.all_seeds 
@@ -277,7 +338,7 @@ def process_images_patched(p):
 
 if not hasattr(modules.processing, 'process_images_pre_patch_4_nai'):
     modules.processing.process_images_pre_patch_4_nai = modules.processing.process_images_inner     
-    print("Patching Image Processing for NAI Generator Script, this may could potentially cause compatibility issues.")
+    print("Patching Image Processing for NAI Generator Script.")
 modules.processing.process_images_inner = process_images_patched
 
 
