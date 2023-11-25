@@ -156,7 +156,6 @@ class NAIGENScript(scripts.Script):
             height = int(p.height/64)*64
         
             self.comment(p,f"Cost Limiter: Reduce dimensions to {p.width} x {p.height}")
-            p.comments[f"NAI API {c}"] = c
             
         if nai_batch and p.batch_size > 1:
             p.n_iter *= p.batch_size
