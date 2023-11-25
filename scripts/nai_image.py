@@ -177,7 +177,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
     
         if not enable or self.disable: return         
         self.restore_local(p)
-        p.extra_generation_params[f'{PREFIX} enable'] =True   #Only enable if using init image, 
+        p.extra_generation_params[f'{PREFIX} enable'] = True
         if sampler.lower() != "auto": p.extra_generation_params[f'{PREFIX} sampler'] = sampler
         p.extra_generation_params[f'{PREFIX} noise_schedule'] = noise_schedule
         p.extra_generation_params[f'{PREFIX} dynamic_thresholding'] = dynamic_thresholding
@@ -202,7 +202,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             
             prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
             
-            return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle= qualityToggle == 1 or qualityToggle , ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,overlay=add_original_image, mask = mask)        
+            return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,overlay=add_original_image, mask = mask)        
         
         self.get_batch_images(p, getparams, save_images = True , save_suffix ="-nai-init-image" ,dohash = False, query_batch_size=1)        
         

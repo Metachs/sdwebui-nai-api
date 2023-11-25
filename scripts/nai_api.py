@@ -83,6 +83,7 @@ def prompt_has_weight(p):
     for i in range(len(p)):
         c = p[i]
         if c in [uo]:
+            if i>0 and p[i]=='\\': continue
             inparen+=1
         elif c == e:
             eidx = i
@@ -220,10 +221,6 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         return p
     prompt=clean(prompt)
     neg=clean(neg)
-    dynamic_thresholding = "true" if dynamic_thresholding else "false"
-    sm = "true" if sm else "false"
-    sm_dyn = "true" if sm_dyn else "false"
-    qualityToggle = "true" if qualityToggle else "false"
     
     if "ddim" in sampler or model != NAIv3: 
         noise_schedule=""
@@ -294,6 +291,11 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         extra_noise_seed=""
         action = 'generate'
         
+    dynamic_thresholding = "true" if dynamic_thresholding else "false"
+    sm = "true" if sm else "false"
+    sm_dyn = "true" if sm_dyn else "false"
+    qualityToggle = "true" if qualityToggle else "false"
+    
     return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":1{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":"{qualityToggle}","sm":"{sm}","sm_dyn":"{sm_dyn}","dynamic_thresholding":"{dynamic_thresholding}","controlnet_strength":1,"legacy":"false","add_original_image":"{overlay}"{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
 
 def noise_schedule_selected(sampler,noise_schedule):

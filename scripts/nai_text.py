@@ -134,7 +134,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         def getparams(i):   
             seed =int(p.all_seeds[i])
             prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
-            return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler=sampler, steps=p.steps, noise_schedule=noise_schedule,sm= smea.lower() == "smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1 or qualityToggle, ucPreset = ucPreset)
+            return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler=sampler, steps=p.steps, noise_schedule=noise_schedule,sm= smea.lower() == "smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1 , ucPreset = ucPreset)
         
         self.get_batch_images(p, getparams, save_images = True , save_suffix = "" ,dohash = False, query_batch_size=1)
 
