@@ -259,7 +259,16 @@ def process_images_patched(p):
 
         p.scripts.process= process_patched.__get__(p.scripts, scripts.ScriptRunner)
         
-        return modules.processing.process_images_pre_patch_4_nai(p)
+        results = modules.processing.process_images_pre_patch_4_nai(p)
+        if getattr(script,'include_nai_init_images_in_results',False):
+            results.all_subseeds += script.all_subseeds 
+            results.all_seeds += script.all_seeds 
+            results.all_prompts += script.all_prompts 
+            results.all_negative_prompts += script.all_negative_prompts 
+            results.images += script.images
+            results.infotexts += script.texts
+        return results
+            
     except NAIGenException:
         return p.nai_processed
     finally: 

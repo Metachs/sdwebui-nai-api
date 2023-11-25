@@ -100,16 +100,14 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             (smea, f'{PREFIX} '+ 'smea'),
             (uncond_scale, f'{PREFIX} '+ 'uncond_scale'),
             (cfg_rescale, f'{PREFIX} '+ 'cfg_rescale'),
-            (do_local, f'{PREFIX} '+ 'mode'),
             
             (keep_mask_for_local, f'{PREFIX} '+ 'keep_mask_for_local'),
             (nai_denoise_strength, f'{PREFIX} '+ 'nai_denoise_strength'),
             (nai_steps, f'{PREFIX} '+ 'nai_steps'),
             (nai_cfg, f'{PREFIX} '+ 'nai_cfg'),
-            (nai_resolution_scale, f'{PREFIX} '+ 'nai_resolution_scale'),
+            #(nai_resolution_scale, f'{PREFIX} '+ 'nai_resolution_scale'),
             (add_original_image, f'{PREFIX} '+ 'add_original_image'),
             (extra_noise, f'{PREFIX} '+ 'extra_noise'),
-            (img_resize_mode, f'{PREFIX} '+ 'img_resize_mode'),
         ]
         
         self.paste_field_names = []
@@ -143,12 +141,13 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         self.strength = p.denoising_strength
         self.mask = p.image_mask
         
-        if do_local:
-            if p.n_iter> 1: print(f"{self.NAISCRIPTNAME} does not currently support iteration in 2 pass mode")
+        if do_local != 0:
+            if p.n_iter > 1: print(f"{self.NAISCRIPTNAME} does not currently support iteration in 2 pass mode")
             
             self.set_local(p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
         else:
             p.disable_extra_networks=True
+            
         self.images = []
         self.hashes = []
         
@@ -162,7 +161,6 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         p.steps = self.steps
         p.image_mask = self.mask
         p.denoising_strength = self.strength
-
         
     def set_local(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local):    
         if nai_resolution_scale> 0:
@@ -175,8 +173,9 @@ class NAIGENScriptText(nai_script.NAIGENScript):
 
     def process_inner(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
     
-        if not enable or self.disable: return         
-        self.restore_local(p)
+        if not enable or self.disable: return
+        if do_local != 0: self.restore_local(p)
+        
         p.extra_generation_params[f'{PREFIX} enable'] = True
         if sampler.lower() != "auto": p.extra_generation_params[f'{PREFIX} sampler'] = sampler
         p.extra_generation_params[f'{PREFIX} noise_schedule'] = noise_schedule
@@ -184,7 +183,6 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         p.extra_generation_params[f'{PREFIX} '+ 'smea'] = smea
         p.extra_generation_params[f'{PREFIX} '+ 'uncond_scale'] = uncond_scale
         p.extra_generation_params[f'{PREFIX} '+ 'cfg_rescale'] = cfg_rescale
-        p.extra_generation_params[f'{PREFIX} '+ 'mode'] = do_local
         
         p.extra_generation_params[f'{PREFIX} '+ 'keep_mask_for_local'] = keep_mask_for_local
         p.extra_generation_params[f'{PREFIX} '+ 'nai_denoise_strength'] = nai_denoise_strength
@@ -203,7 +201,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         def getparams(i):   
             seed =int(p.all_seeds[i])
             
-            image= None if do_local == 1 else  p.init_images[len(p.init_images) % p.batch_size]
+            image= None if (do_local == 1 or p.init_images is None or len(p.init_images) == 0) else  p.init_images[len(p.init_images) % p.batch_size]
             
             if image is not None and img_resize_mode < 3:
                 image = images.resize_image(img_resize_mode, image, p.width, p.height,"Lanczos")
@@ -214,10 +212,17 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         
         self.get_batch_images(p, getparams, save_images = True , save_suffix ="-nai-init-image" ,dohash = False, query_batch_size=1)        
         
-        self.set_local(p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
-            
-        if not do_local:
+        if do_local == 0:
            p.nai_processed = Processed(p, self.images, p.seed, self.texts[0], subseed=p.all_subseeds[0], infotexts = self.texts) 
         else:
+            
+            self.all_seeds = p.all_seeds.copy()
+            self.all_subseeds = p.all_subseeds.copy()
+            self.all_prompts = p.all_prompts.copy()
+            self.all_negative_prompts = p.all_negative_prompts.copy()
+            
+            self.set_local(p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
+                
             p.init_images = self.images
+            self.include_nai_init_images_in_results=True
             
