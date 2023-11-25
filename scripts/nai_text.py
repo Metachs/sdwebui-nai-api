@@ -54,7 +54,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
                 with gr.Row(variant="compact"):
                     cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.02, label='CFG Rescale', value=0.0)
                     uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.05, label='Uncond Scale', value=1.0,)
-                    noise_schedule = gr.Dropdown(label="Schedule",value="Auto",choices=["Auto Schedule","exponential","polyexponential","karras","native"],type="value")
+                    noise_schedule = gr.Dropdown(label="Schedule",value="recommended",choices=["recommended","exponential","polyexponential","karras","native"],type="value")
             with gr.Accordion(label="Options", open=False):
                 with gr.Row(variant="compact"):
                     qualityToggle = gr.Radio(value="Off", label="Quality Preset",choices=["Off","On"],type="index") 

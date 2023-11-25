@@ -69,13 +69,13 @@ class NAIGENScriptText(nai_script.NAIGENScript):
                 with gr.Row(variant="compact"):
                     cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.02, label='CFG Rescale', value=0.0)
                     uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.05, label='Uncond Scale', value=1.0,)
-                    noise_schedule = gr.Dropdown(label="Schedule",value="Auto",choices=["Auto Schedule","exponential","polyexponential","karras","native"],type="value")
+                    noise_schedule = gr.Dropdown(label="Schedule",value="recommended",choices=["recommended","exponential","polyexponential","karras","native"],type="value")
             with gr.Accordion(label='Local Second Pass Overrides: Ignored if 0', open=False ):                    
                 with gr.Row(variant="compact"):
                     nai_resolution_scale=gr.Slider(minimum=0.0, maximum=4.0, step=0.05, label='Scale', value=1.0)
                     nai_cfg=gr.Slider(minimum=0.0, maximum=30, step=0.05, label='CFG', value=0.0)
-                    nai_steps=gr.Slider(minimum=0, maximum=200, step=1, label='Steps', value=0)
-                    nai_denoise_strength=gr.Slider(minimum=0.0, step=0.01, label='Denoise strength', value=0.0)
+                    nai_steps=gr.Slider(minimum=0, maximum=150, step=1, label='Steps', value=0)
+                    nai_denoise_strength=gr.Slider(minimum=0.0, maximum=1.0,step=0.01, label='Denoise strength', value=0.0)
                     keep_mask_for_local = gr.Checkbox(value=False, label="Keep inpaint mask for both passes")
             with gr.Accordion(label="Options", open=False):
                 with gr.Row(variant="compact"):
@@ -181,11 +181,19 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         if sampler.lower() != "auto": p.extra_generation_params[f'{PREFIX} sampler'] = sampler
         p.extra_generation_params[f'{PREFIX} noise_schedule'] = noise_schedule
         p.extra_generation_params[f'{PREFIX} dynamic_thresholding'] = dynamic_thresholding
-        p.extra_generation_params[f'{PREFIX} '+ 'model'] = model
-        p.extra_generation_params[f'{PREFIX} '+ 'sm'] = sm
-        p.extra_generation_params[f'{PREFIX} '+ 'sm_dyn'] = sm_dyn
+        p.extra_generation_params[f'{PREFIX} '+ 'smea'] = smea
         p.extra_generation_params[f'{PREFIX} '+ 'uncond_scale'] = uncond_scale
-        p.extra_generation_params[f'{PREFIX} '+ 'cfg_rescale'] = cfg_rescale      
+        p.extra_generation_params[f'{PREFIX} '+ 'cfg_rescale'] = cfg_rescale
+        p.extra_generation_params[f'{PREFIX} '+ 'mode'] = do_local
+        
+        p.extra_generation_params[f'{PREFIX} '+ 'keep_mask_for_local'] = keep_mask_for_local
+        p.extra_generation_params[f'{PREFIX} '+ 'nai_denoise_strength'] = nai_denoise_strength
+        p.extra_generation_params[f'{PREFIX} '+ 'nai_steps'] = nai_steps
+        p.extra_generation_params[f'{PREFIX} '+ 'nai_cfg'] = nai_cfg
+        p.extra_generation_params[f'{PREFIX} '+ 'nai_resolution_scale'] = nai_resolution_scale
+        p.extra_generation_params[f'{PREFIX} '+ 'add_original_image'] = add_original_image
+        p.extra_generation_params[f'{PREFIX} '+ 'extra_noise'] = extra_noise
+        p.extra_generation_params[f'{PREFIX} '+ 'img_resize_mode'] = img_resize_mode
             
         extra_noise = max(getattr(p,"extra_noise",0) , extra_noise)        
         mask = p.image_mask or self.mask
