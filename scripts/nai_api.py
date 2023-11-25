@@ -88,6 +88,7 @@ def prompt_has_weight(p):
             eidx = i
         elif c == ux and inparen>0:
             inparen-=1
+            if eidx is None: continue
             weight = tryfloat(p[eidx+1:i],None)
             if weight is not None:return True
     return False

@@ -21,8 +21,6 @@ NAIv3 = "nai-diffusion-3"
 hashdic = {}
 
 
-MODE= "Patch" 
-
 PREFIX = 'NAI'
 
 class NAIGENScriptText(nai_script.NAIGENScript):
@@ -210,7 +208,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         
         self.set_local(p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
             
-        if MODE != 'Patch' or not do_local:
+        if not do_local:
            p.nai_processed = Processed(p, self.images, p.seed, self.texts[0], subseed=p.all_subseeds[0], infotexts = self.texts) 
         else:
             p.init_images = self.images

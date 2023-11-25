@@ -146,6 +146,8 @@ class NAIGENScript(scripts.Script):
         if convert_prompts != "Never":
             if convert_prompts == "Always" or prompt_has_weight(prompt): prompt = prompt_to_nai(prompt)
             if convert_prompts == "Always" or prompt_has_weight(prompt): neg = prompt_to_nai(neg)
+            prompt=prompt.replace('\\(','(').replace('\\)',')')
+            neg=neg.replace('\\(','(').replace('\\)',')')
         return prompt, neg
 
     def get_batch_images(self, p, getparams, save_images = False , save_suffix = "", dohash = False, query_batch_size = 0):            
@@ -210,8 +212,6 @@ class NAIGENScript(scripts.Script):
                 if dohash and p.batch_size * p.n_iter == 1:  p.enable_hr = False
                 self.images[i] = Image.new("RGBA",(p.width, p.height), color = "black")
         
-MODE= shared.opts.data.get('NAI_gen_mode', 'Script')
-#print(MODE)
 
 class NAIGenException(Exception):
     pass
@@ -227,9 +227,7 @@ def process_images_patched(p):
             # Probably need to look up how python imports work, clearly it is not anything sane, rational or predictable, like everything else in this trainwreck of a language
             if hasattr(script, "NAISCRIPTNAME"): return script        
 
-    if MODE != 'Patch': return modules.processing.process_images_pre_patch_4_nai(p)
-    
-    script = None if MODE != 'Patch' else FindScript(p.scripts)
+    script = FindScript(p.scripts)
     
     if script is None: 
         print("NAIGENScript is None")        
@@ -267,7 +265,6 @@ def process_images_patched(p):
         p.scripts.process=p.scripts.originalprocess
         
 
-if MODE == 'Patch':
     if not hasattr(modules.processing, 'process_images_pre_patch_4_nai'):
         modules.processing.process_images_pre_patch_4_nai = modules.processing.process_images_inner     
         print("Patching Image Processing for NAI Generator Script, this may could potentially cause compatibility issues.")

@@ -20,7 +20,6 @@ NAIv3 = "nai-diffusion-3"
 
 hashdic = {}    
 
-MODE= "Patch"
 PREFIX = 'NAI'
 
 class NAIGENScriptText(nai_script.NAIGENScript):
