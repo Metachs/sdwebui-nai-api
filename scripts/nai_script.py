@@ -149,8 +149,8 @@ class NAIGENScript(scripts.Script):
         MAXSIZE = 1048576
         if p.width * p.height > MAXSIZE:
             scale = p.width/p.height
-            p.width= int(math.sqrt(MAXSIZE/scale))
-            p.height= int(p.width * scale)
+            p.height= int(math.sqrt(MAXSIZE/scale))
+            p.width= int(p.height * scale)
                 
             p.width = int(p.width/64)*64
             p.height = int(p.height/64)*64
