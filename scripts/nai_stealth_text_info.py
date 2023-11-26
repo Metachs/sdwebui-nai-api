@@ -53,7 +53,7 @@ def process_nai_geninfo(geninfo, items):
         from modules import sd_samplers
         
         sampler = sd_samplers.samplers_map.get(j["sampler"], None)
-        if sampler is None:  'DDIM' if 'ddim' in sampler.lower() else 'Euler a'        
+        if sampler is None: sampler = 'DDIM' if 'ddim' in j["sampler"].lower() else 'Euler a'        
         geninfo = f'{items["Description"]}\nNegative prompt: {j["uc"]}\nSteps: {j["steps"]}, Sampler: {sampler}, CFG scale: {j["scale"]}, Seed: {j["seed"]}, Size: {j["width"]}x{j["height"]}'
     except Exception as e:
         print (e)

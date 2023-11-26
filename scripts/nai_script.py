@@ -186,7 +186,7 @@ class NAIGENScript(scripts.Script):
         
         if width == p.width and height == p.height: return
         
-        self.comment(p,f'Adjusted resolution from {p.width} x {p.height} to {width} x {height}- NAI dimensions must be divisible by 64 and below 1792*1728 total resolution')
+        self.comment(p,f'Adjusted resolution from {p.width} x {p.height} to {width} x {height}- NAI dimensions must be multiples of 64 and <= 1792x1728')
         
         p.width = width
         p.height = height
@@ -269,6 +269,13 @@ class NAIGENScript(scripts.Script):
                 print("Image Failed to Load, Giving Up")
                 if dohash and p.batch_size * p.n_iter == 1:  p.enable_hr = False
                 self.images[i] = Image.new("RGBA",(p.width, p.height), color = "black")
+            else:
+                if i == 0:
+                    import modules.paths as paths
+                    with open(os.path.join(paths.data_path, "params.txt"), "w", encoding="utf8") as file:
+                        processed = Processed(p, [])
+                        file.write(processed.infotext(p, 0))
+
         
 class NAIGenException(Exception):
     pass
