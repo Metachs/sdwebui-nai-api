@@ -88,13 +88,14 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         return [enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset]
     
     def patched_process(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,**kwargs):
-        if not enable: return
+        if not enable: self.disabled=True
+        if self.disabled: return 
         
         if not self.check_api_key():
             self.fail(p,"Invalid NAI Key")
             return
             
-        self.setup_sampler_name(p, sampler)      
+        self.setup_sampler_name(p, sampler)
         
         if cost_limiter: self.limit_costs(p)
         
@@ -139,5 +140,3 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         self.get_batch_images(p, getparams, save_images = True , save_suffix = "" ,dohash = False, query_batch_size=1)
 
         p.nai_processed = Processed(p, self.images, p.seed, self.texts[0], subseed=p.all_subseeds[0], infotexts = self.texts) 
-
-           

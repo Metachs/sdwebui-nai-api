@@ -18,9 +18,6 @@ NAIv1f = "nai-diffusion-furry"
 NAIv2 = "nai-diffusion-2"
 NAIv3 = "nai-diffusion-3"
 
-hashdic = {}
-
-
 PREFIX = 'NAI'
 
 class NAIGENScriptText(nai_script.NAIGENScript):
@@ -80,7 +77,6 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             with gr.Accordion(label="Options", open=False):
                 with gr.Row(variant="compact"):
                     qualityToggle = gr.Radio(value="Off", label="Quality Preset",choices=["Off","On"],type="index") 
-                    #qualityToggle = gr.Checkbox(value=False, label="Quality Preset") 
                     ucPreset = gr.Radio(label="Negative Preset",value="None",choices=["Heavy","Light","None"],type="index")           
                     convert_prompts = gr.Dropdown(label="Convert Prompts for NAI ",value="Auto",choices=["Auto","Never","Always"])
                     cost_limiter = gr.Checkbox(value=True, label="Force Opus Free Gen Size/Step Limit")
@@ -92,7 +88,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             enable.change(fn=on_enable, inputs=[enable,hr], outputs=[enable,hr])
 
         self.infotext_fields = [
-            (enable, f'{PREFIX} enable'),
+            (enable, f'{PREFIX} enable I'),
             (sampler, f'{PREFIX} sampler'),
             (noise_schedule, f'{PREFIX} noise_schedule'),
             (dynamic_thresholding, f'{PREFIX} dynamic_thresholding'),
@@ -117,20 +113,16 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         return [enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local]
         
     def patched_process(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
+        
         if not enable: self.disabled=True
         if self.disabled: return 
-        self.setup_old(p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
-        
-    def setup_old(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local):    
         
         if not self.check_api_key():
             self.fail(p,"Invalid NAI Key")
             return
-        
+            
         self.setup_sampler_name(p, sampler)
         
-        self.disabled = False
-
         if cost_limiter: self.limit_costs(p)
         self.adjust_resolution(p)
         #self.query_batch_size = p.batch_size        
@@ -142,7 +134,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         self.mask = p.image_mask
         
         if do_local != 0:
-            if p.n_iter > 1: print(f"{self.NAISCRIPTNAME} does not currently support iteration in 2 pass mode")
+            if p.n_iter > 1: self.message(f"Ignoring Iterations, {self.NAISCRIPTNAME} does not currently support iteration in 2 pass mode")
             
             self.set_local(p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
         else:
@@ -172,8 +164,9 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         if not keep_mask_for_local and do_local == 2: p.image_mask = None
 
     def process_inner(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
-    
-        if not enable or self.disable: return
+        if not enable: self.disabled=True
+        if self.disabled: return 
+        
         if do_local != 0: self.restore_local(p)
         
         model = getattr(p,f'{PREFIX}_'+ 'model',model)
@@ -186,7 +179,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         extra_noise = getattr(p,f'{PREFIX}_'+ 'extra_noise',extra_noise)        
         add_original_image = getattr(p,f'{PREFIX}_'+ 'add_original_image',add_original_image)        
         
-        p.extra_generation_params[f'{PREFIX} enable'] = True
+        p.extra_generation_params[f'{PREFIX} enable I'] = True
         if sampler.lower() != "auto": p.extra_generation_params[f'{PREFIX} sampler'] = sampler
         p.extra_generation_params[f'{PREFIX} noise_schedule'] = noise_schedule
         p.extra_generation_params[f'{PREFIX} dynamic_thresholding'] = dynamic_thresholding

@@ -152,8 +152,8 @@ class NAIGENScript(scripts.Script):
             p.width= int(math.sqrt(MAXSIZE/scale))
             p.height= int(p.width * scale)
                 
-            width = int(p.width/64)*64
-            height = int(p.height/64)*64
+            p.width = int(p.width/64)*64
+            p.height = int(p.height/64)*64
         
             self.comment(p,f"Cost Limiter: Reduce dimensions to {p.width} x {p.height}")
             
@@ -208,7 +208,7 @@ class NAIGENScript(scripts.Script):
         nai_format = shared.opts.data.get('NAI_gen_text_info', 'NAI') == 'NAI'
         
         def infotext(i):
-            iteration = int(i / p.n_iter)
+            iteration = int(i / (p.n_iter*p.batch_size))
             batch = i % p.batch_size            
             return create_infotext(p, p.all_prompts, p.all_seeds, p.all_subseeds, None, iteration, batch)
 
