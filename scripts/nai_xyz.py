@@ -75,7 +75,6 @@ def xyz_support():
                 choices= lambda: nai_api.nai_models
             ))
             
-            
             xy_grid.axis_options.append(xy_grid.AxisOption(
                 f'{PREFIX} Sampler',
                 str,
@@ -83,11 +82,11 @@ def xyz_support():
                 choices= lambda: nai_api.NAI_SAMPLERS
             ))
             
-            
             xy_grid.axis_options.append(xy_grid.AxisOption(
                 f'{PREFIX} Decrisper (dynamic_thresholding)',
                 to_bool,
                 xy_grid.apply_field( f'{PREFIX}_'+'dynamic_thresholding'),
+                choices= lambda: ["On","Off"]
             ))
             
             xy_grid.axis_options.append(xy_grid.AxisOption(
