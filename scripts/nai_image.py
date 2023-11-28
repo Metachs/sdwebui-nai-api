@@ -9,8 +9,11 @@ from scripts.nai_api import NAIGenParams
 from scripts import nai_script
 
 import modules.images as images
-from modules.processing import process_images
-from modules.processing import Processed, StableDiffusionProcessingTxt2Img,StableDiffusionProcessingImg2Img,create_infotext
+from modules.processing import process_images,apply_overlay
+from modules.processing import Processed
+from PIL import Image, ImageFilter, ImageOps
+from modules import masking
+import numpy as np
 
 NAIv1 = "nai-diffusion"
 NAIv1c = "safe-diffusion"
@@ -79,6 +82,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
                     ucPreset = gr.Radio(label="Negative Preset",value="None",choices=["Heavy","Light","None"],type="index")           
                     convert_prompts = gr.Dropdown(label="Convert Prompts for NAI ",value="Auto",choices=["Auto","Never","Always"])
                     cost_limiter = gr.Checkbox(value=True, label="Force Opus Free Gen Size/Step Limit")
+                    nai_post = gr.Checkbox(value=True, label="Use NAI for Post Processing (ADetailer)")
         def on_enable(e,h):
             if e and not self.api_connected: return self.connect_api()
             return e,h
@@ -109,9 +113,9 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         for _, field_name in self.infotext_fields:
             self.paste_field_names.append(field_name)
             
-        return [enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local]
+        return [enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local]
         
-    def patched_process(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
+    def patched_process(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
         
         if not enable: self.disabled=True
         if self.disabled: return 
@@ -119,6 +123,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         if not self.check_api_key():
             self.fail(p,"Invalid NAI Key")
             return
+        self.do_nai_post=nai_post
             
         self.setup_sampler_name(p, sampler)
         
@@ -134,7 +139,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         
         if do_local != 0:
             #if p.n_iter > 1: self.message(f"Ignoring Iterations Batch Count, {self.NAISCRIPTNAME} does not currently support iteration in 2 pass mode")
-            self.set_local(p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
+            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
         else:
             p.disable_extra_networks=True
             
@@ -152,7 +157,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         p.image_mask = self.mask
         p.denoising_strength = self.strength
         
-    def set_local(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local):    
+    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local):    
         if nai_resolution_scale> 0:
             p.width = int(p.width * nai_resolution_scale)
         p.height = int(p.height * nai_resolution_scale)
@@ -161,7 +166,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         if nai_denoise_strength > 0: p.denoising_strength = nai_denoise_strength
         if not keep_mask_for_local and do_local == 2: p.image_mask = None
 
-    def process_inner(self,p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
+    def process_inner(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
         if not enable: self.disabled=True
         if self.disabled: return 
         
@@ -195,25 +200,52 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         p.extra_generation_params[f'{PREFIX} '+ 'img_resize_mode'] = img_resize_mode
         
             
+        
+            
         extra_noise = max(getattr(p,"extra_noise",0) , extra_noise)        
-        mask = p.image_mask or self.mask
-        if mask != None and img_resize_mode < 3:
-            mask = images.resize_image(img_resize_mode, mask, p.width, p.height,"Lanczos")
+        image_mask = p.image_mask or self.mask
+        
+        crop = None
+        if image_mask is not None: 
+            if p.inpaint_full_res:
+                mask = image_mask.convert('L')
+                crop = masking.expand_crop_region(masking.get_crop_region(np.array(mask), p.inpaint_full_res_padding), p.width, p.height, mask.width, mask.height)
+                x1, y1, x2, y2 = crop
+                image_mask = images.resize_image(2, mask.crop(crop), p.width, p.height)
+                paste_to = (crop[0], crop[1], crop[2]-crop[0], crop[3]-crop[1])                
+                init_masked=[]
+                for i in range(len(p.init_images)):
+                    image = p.init_images[i]                
+                    image_masked = Image.new('RGBa', (image.width, image.height))
+                    image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(p.image_mask.convert('L')))
+                    init_masked.append(image_masked.convert('RGBA'))
+            elif img_resize_mode < 3:
+                image_mask = images.resize_image(img_resize_mode, image_mask, p.width, p.height)
 
         def getparams(i):
             seed =int(p.all_seeds[i])
             
             image= None if (do_local == 1 or p.init_images is None or len(p.init_images) == 0) else  p.init_images[len(p.init_images) % min(p.batch_size, len (p.init_images))]
             
-            if image is not None and img_resize_mode < 3:
-                image = images.resize_image(img_resize_mode, image, p.width, p.height,"Lanczos")
+            if crop is not None:
+                image = image.crop(crop)
+                image = images.resize_image(2, image, p.width, p.height)
+            elif image is not None and img_resize_mode < 3:
+                image = images.resize_image(img_resize_mode, image, p.width, p.height)
             
             prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
             
-            return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,overlay=add_original_image, mask = mask)        
+            return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,overlay=add_original_image, mask = image_mask)        
+        suffix ="-nai-init-image" if do_local > 0 else ""
         
-        self.get_batch_images(p, getparams, save_images = True , save_suffix ="-nai-init-image" ,dohash = False, query_batch_size=1)        
+        self.get_batch_images(p, getparams, save_images = not p.inpaint_full_res , save_suffix =suffix ,dohash = False, query_batch_size=1)
         
+        if crop is not None:
+            for i in range(len(self.images)):
+                image = apply_overlay(self.images[i], paste_to, 0, init_masked)
+                images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix= suffix)
+                self.images[i] = image
+
         if do_local == 0:
            p.nai_processed = Processed(p, self.images, p.seed, self.texts[0], subseed=p.all_subseeds[0], infotexts = self.texts) 
         else:
@@ -223,9 +255,69 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             self.all_prompts = p.all_prompts.copy()
             self.all_negative_prompts = p.all_negative_prompts.copy()
             
-            self.set_local(p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
+            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
                 
             p.init_images = self.images
             self.include_nai_init_images_in_results=True
             
+        
+
+    def post_process_i2i(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
+        if p.init_images is None or len(p.init_images) == 0:
+            return None
+        self.setup_sampler_name(p, sampler)
+        if cost_limiter: self.limit_costs(p)
+        self.adjust_resolution(p)
+        p.disable_extra_networks=True
+
+        p.batch_size = p.n_iter * p.batch_size
+        p.n_iter = 1        
+        image_mask = p.image_mask
+        
+        crop = None
+        if image_mask is not None: 
+            if p.inpaint_full_res:
+                mask = image_mask.convert('L')
+                crop = masking.expand_crop_region(masking.get_crop_region(np.array(mask), p.inpaint_full_res_padding), p.width, p.height, mask.width, mask.height)
+                x1, y1, x2, y2 = crop
+                image_mask = images.resize_image(2, mask.crop(crop), p.width, p.height)
+                paste_to = (crop[0], crop[1], crop[2]-crop[0], crop[3]-crop[1])                
+                init_masked=[]
+                for i in range(len(p.init_images)):
+                    image = p.init_images[i]                
+                    image_masked = Image.new('RGBa', (image.width, image.height))
+                    image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(p.image_mask.convert('L')))
+                    init_masked.append(image_masked.convert('RGBA'))
+            # elif img_resize_mode < 3:
+                # image_mask = images.resize_image(img_resize_mode, image_mask, p.width, p.height)
+
+
+        def getparams(i):
+            seed =int(p.all_seeds[i])
+            
+            image= p.init_images[len(p.init_images) % p.batch_size]
+            
+            if crop is not None:
+                image = image.crop(crop)
+                image = images.resize_image(2, image, p.width, p.height)
+            # elif image is not None and img_resize_mode < 3:
+                # image = images.resize_image(img_resize_mode, image, p.width, p.height)
+                
+            prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
+            
+            return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = 0, ucPreset = 2 , noise = 0, image = image, strength= p.denoising_strength,overlay=True, mask = image_mask)        
+                
+        self.images = []
+        self.texts = []
+        self.hashes = []
+        
+        self.get_batch_images(p, getparams, save_images = False ,dohash = False, query_batch_size=1)        
+        
+        if crop is not None:
+            for i in range(len(self.images)):
+                image = apply_overlay(self.images[i], paste_to, 0, init_masked)
+                images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i])
+                self.images[i] = image
+                
+        return Processed(p, self.images, p.seed, self.texts[0], subseed=p.subseed, infotexts = self.texts) 
         

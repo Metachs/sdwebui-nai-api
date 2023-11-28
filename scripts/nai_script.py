@@ -66,10 +66,11 @@ class NAIGENScript(scripts.Script):
         self.texts = []
         self.sampler_name = None
         self.api_connected = False
-        self.disable=False
+        self.disabled=False
         self.failed=False
         self.failure=""
         self.running=True
+        self.do_nai_post=False
         
         
     def title(self):
@@ -133,6 +134,7 @@ class NAIGENScript(scripts.Script):
         self.images=[]
         self.hashes=[]
         self.texts=[]
+        self.nai_processed=None
         
     def comment(self, p , c):
         print (c)
@@ -167,10 +169,8 @@ class NAIGENScript(scripts.Script):
     
     def adjust_resolution(self, p):
         #if p.width % 64 == 0 and p.height % 64 == 0 or p.width *p.height > 1792*1728: return
-        
         width = p.width
-        height = p.height
-        
+        height = p.height        
         
         width = int(p.width/64)*64
         height = int(p.height/64)*64
@@ -190,10 +190,12 @@ class NAIGENScript(scripts.Script):
         
         p.width = width
         p.height = height
+        
+        
+        
 
     
     def convert_to_nai(self, prompt, neg,convert_prompts="Always"):
-        
         if convert_prompts != "Never":
             if convert_prompts == "Always" or prompt_has_weight(prompt): prompt = prompt_to_nai(prompt)
             if convert_prompts == "Always" or prompt_has_weight(prompt): neg = prompt_to_nai(neg)
@@ -201,7 +203,7 @@ class NAIGENScript(scripts.Script):
             neg=neg.replace('\\(','(').replace('\\)',')')
         return prompt, neg
 
-    def get_batch_images(self, p, getparams, save_images = False , save_suffix = "", dohash = False, query_batch_size = 0):          
+    def get_batch_images(self, p, getparams, save_images = False , save_suffix = "", dohash = False, query_batch_size = 1):          
     
         key = get_api_key()
         
@@ -225,15 +227,20 @@ class NAIGENScript(scripts.Script):
                         self.images.append(Image.open(imgp))
                         self.hashes.append(None)
                         self.texts.append(infotext(i))
+                elif len(p.all_prompts[i]) < 1:
+                    self.images.append(None)
+                    self.hashes.append(None)
+                    self.texts.append("")
+                    self.comment(p,f'NAI Does Not Support Empty Prompts!')
                 else:
                     self.images.append(None)
                     self.hashes.append(None)
+                    self.texts.append("")
                     if dohash:
                         strip = re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters))
                         self.comment(p,f'{strip}')
                     results.append(POST(key, parameters, g = query_batch_size > 1))
                     resultsidx.append(i)               
-                    self.texts.append("")
                 
                     
             if query_batch_size > 1: 
@@ -271,7 +278,7 @@ class NAIGENScript(scripts.Script):
                 if dohash and p.batch_size * p.n_iter == 1:  p.enable_hr = False
                 self.images[i] = Image.new("RGBA",(p.width, p.height), color = "black")
             else:
-                if i == 0:
+                if i == 0 and save_images:
                     import modules.paths as paths
                     with open(os.path.join(paths.data_path, "params.txt"), "w", encoding="utf8") as file:
                         processed = Processed(p, [])
@@ -280,6 +287,9 @@ class NAIGENScript(scripts.Script):
         
 class NAIGenException(Exception):
     pass
+
+POSTPROCESS = 0
+running_scripts=[] # This script stack is probably unnecessary
     
 def process_images_patched(p):
     def FindScript(scripts):
@@ -291,44 +301,90 @@ def process_images_patched(p):
             # Probably need to look up how python imports work, clearly it is not anything sane, rational or predictable, like everything else in this trainwreck of a language
             if hasattr(script, "NAISCRIPTNAME"): return script
 
+    def get_args():
+        if hasattr(p, "per_script_args"):
+            args = p.per_script_args.get(script.title(), p.script_args[script.args_from:script.args_to])
+        elif hasattr(p, "script_args"):
+            args = p.script_args[script.args_from:script.args_to]
+        return args
+
     script = FindScript(p.scripts)
-    
+    global POSTPROCESS
+    global running_scripts
+    is_post =False
+    if script is None and len(running_scripts) >= POSTPROCESS:
+        script = running_scripts[POSTPROCESS-1]   
+        if script.do_nai_post: is_post=True
+        else: script=None        
     if script is None or hasattr(p, "NAI_enable") and not p.NAI_enable: 
         return modules.processing.process_images_pre_patch_4_nai(p)
         
-    p.nai_processed=None
-    p.scripts.originalprocess = p.scripts.process
+    args = get_args()
     
-    if hasattr(p, "per_script_args"):
-        args = p.per_script_args.get(script.title(), p.script_args[script.args_from:script.args_to])
-    elif hasattr(p, "script_args"):
-        args = p.script_args[script.args_from:script.args_to]
-    else: return modules.processing.process_images_pre_patch_4_nai(p)
     
-    try:
+    if args is None: return modules.processing.process_images_pre_patch_4_nai(p)
+    if not is_post:
         script.initialize()        
         script.patched_process(p, *args)        
+        
         if script.failed: raise Exception(script.failure)
-        
         if script.disabled: return modules.processing.process_images_pre_patch_4_nai(p)
+    p.nai_processed=None
+    originalprocess = p.scripts.process
+    def process_patched(self,p, **kwargs):
+        nonlocal originalprocess
+        originalprocess(p, **kwargs)
+        p.scripts.process = originalprocess
+        originalprocess=None
         
-        def process_patched(self,p, **kwargs):
-        
-            p.scripts.originalprocess(p, **kwargs)
-            
+        if is_post:
+            print(f'isinstance(p, StableDiffusionProcessingImg2Img) {isinstance(p, StableDiffusionProcessingImg2Img)}')
+            if isinstance(p, StableDiffusionProcessingImg2Img) or hasattr(p, "init_images"):
+                if hasattr(script,"post_process_i2i"):
+                    r = script.post_process_i2i(p,*args)
+                    if r is not None:
+                        p.nai_processed = r
+                        raise NAIGenException
+        else:
             script.process_inner(p, *args) # Sets p.nai_processed if images have been processed
-            
-            if script.failed: raise Exception(script.failure)
-                
-            if hasattr(p,"nai_processed") and p.nai_processed is not None:
-                # Make sure post process is called, at least one extension uses it to clean up from things done in process. 
-                # This may also cause problems since batch process isn't called, but this seems less likely.
-                p.scripts.postprocess(p, p.nai_processed) 
-                raise NAIGenException
 
+        if script.failed: raise Exception(script.failure)
+        if hasattr(p,"nai_processed") and p.nai_processed is not None:
+            # Make sure post process is called, at least one extension uses it to clean up from things done in process. 
+            # This may also cause problems since batch process isn't called, but this seems less likely.
+            global POSTPROCESS
+            global running_scripts
+            cpost = POSTPROCESS
+            
+            if len(running_scripts) <= cpost:
+                running_scripts.append(script)
+            else: running_scripts[cpost]=script
+            
+            POSTPROCESS += 1
+
+            try:
+                r = p.nai_processed
+                for i in range(len(r.images)):
+                    print("PostProcess")
+                    p.iteration = int( i/p.n_iter)
+                    p.batch_index = i % p.batch_size
+                
+                    image = r.images[i]
+                    pp = scripts.PostprocessImageArgs(image)
+                    p.scripts.postprocess_image(p, pp)
+                    image = pp.image
+                    r.images[i] =image
+
+                p.scripts.postprocess(p, p.nai_processed) 
+            finally:
+                POSTPROCESS -= 1
+            
+            raise NAIGenException
+                
+    try:
         p.scripts.process= process_patched.__get__(p.scripts, scripts.ScriptRunner)
-        
-        results = modules.processing.process_images_pre_patch_4_nai(p)
+        results = modules.processing.process_images_pre_patch_4_nai(p)        
+        if originalprocess is not None:p.scripts.process=originalprocess
         
         if getattr(script,'include_nai_init_images_in_results',False):
             results.all_subseeds += script.all_subseeds 
@@ -342,7 +398,7 @@ def process_images_patched(p):
     except NAIGenException:
         return p.nai_processed
     finally: 
-        p.scripts.process=p.scripts.originalprocess
+        if originalprocess is not None:p.scripts.process=originalprocess
         
 
 if not hasattr(modules.processing, 'process_images_pre_patch_4_nai'):
