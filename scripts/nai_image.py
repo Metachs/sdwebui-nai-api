@@ -138,7 +138,6 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         self.mask = p.image_mask
         
         if do_local != 0:
-            #if p.n_iter > 1: self.message(f"Ignoring Iterations Batch Count, {self.NAISCRIPTNAME} does not currently support iteration in 2 pass mode")
             self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
         else:
             p.disable_extra_networks=True
@@ -288,9 +287,6 @@ class NAIGENScriptText(nai_script.NAIGENScript):
                     image_masked = Image.new('RGBa', (image.width, image.height))
                     image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(p.image_mask.convert('L')))
                     init_masked.append(image_masked.convert('RGBA'))
-            # elif img_resize_mode < 3:
-                # image_mask = images.resize_image(img_resize_mode, image_mask, p.width, p.height)
-
 
         def getparams(i):
             seed =int(p.all_seeds[i])
@@ -300,9 +296,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             if crop is not None:
                 image = image.crop(crop)
                 image = images.resize_image(2, image, p.width, p.height)
-            # elif image is not None and img_resize_mode < 3:
-                # image = images.resize_image(img_resize_mode, image, p.width, p.height)
-                
+
             prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
             
             return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = 0, ucPreset = 2 , noise = 0, image = image, strength= p.denoising_strength,overlay=True, mask = image_mask)        

@@ -365,7 +365,6 @@ def process_images_patched(p):
             try:
                 r = p.nai_processed
                 for i in range(len(r.images)):
-                    print("PostProcess")
                     p.iteration = int( i/p.n_iter)
                     p.batch_index = i % p.batch_size
                 
