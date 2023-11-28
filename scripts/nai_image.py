@@ -25,7 +25,6 @@ class NAIGENScriptText(nai_script.NAIGENScript):
     def __init__(self):
         super().__init__()    
         self.NAISCRIPTNAME = "NAI API Generation I2I"    
-        self.disable = False
         #self.query_batch_size = 1
         self.width = 0
         self.height = 0
@@ -134,8 +133,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         self.mask = p.image_mask
         
         if do_local != 0:
-            if p.n_iter > 1: self.message(f"Ignoring Iterations, {self.NAISCRIPTNAME} does not currently support iteration in 2 pass mode")
-            
+            #if p.n_iter > 1: self.message(f"Ignoring Iterations Batch Count, {self.NAISCRIPTNAME} does not currently support iteration in 2 pass mode")
             self.set_local(p,enable,convert_prompts,cost_limiter,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
         else:
             p.disable_extra_networks=True
@@ -205,7 +203,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         def getparams(i):
             seed =int(p.all_seeds[i])
             
-            image= None if (do_local == 1 or p.init_images is None or len(p.init_images) == 0) else  p.init_images[len(p.init_images) % p.batch_size]
+            image= None if (do_local == 1 or p.init_images is None or len(p.init_images) == 0) else  p.init_images[len(p.init_images) % min(p.batch_size, len (p.init_images))]
             
             if image is not None and img_resize_mode < 3:
                 image = images.resize_image(img_resize_mode, image, p.width, p.height,"Lanczos")

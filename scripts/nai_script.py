@@ -228,8 +228,9 @@ class NAIGENScript(scripts.Script):
                 else:
                     self.images.append(None)
                     self.hashes.append(None)
-                    strip = re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters))
-                    self.comment(p,f'{strip}')
+                    if dohash:
+                        strip = re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters))
+                        self.comment(p,f'{strip}')
                     results.append(POST(key, parameters, g = query_batch_size > 1))
                     resultsidx.append(i)               
                     self.texts.append("")

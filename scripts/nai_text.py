@@ -28,7 +28,6 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         super().__init__()    
         self.NAISCRIPTNAME = "NAI API Generation"    
         #self.query_batch_size = 1
-        self.disable = False
         
     def title(self):
         return self.NAISCRIPTNAME
