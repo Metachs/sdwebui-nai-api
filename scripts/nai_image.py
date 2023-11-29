@@ -62,8 +62,8 @@ class NAIGENScriptText(nai_script.NAIGENScript):
                 smea = gr.Radio(label="SMEA",value="Off",choices=["SMEA","DYN","Off"],type="value",show_label=False)            
             with gr.Row(variant="compact"):
                 img_resize_mode = gr.Dropdown(label='Resize Mode',  choices=["Resize","Crop","Fill","None (NAI Resize)"], value = "Resize", type="index")
-                extra_noise=gr.Slider(minimum=0.0, step=0.01, label='noise', value=0.0)
-                add_original_image = gr.Checkbox(value=False, label='Inpaint: Overlay Image')            
+                extra_noise=gr.Slider(minimum=0.0, maximum=1.0 ,step=0.01, label='noise', value=0.0)
+                add_original_image = gr.Checkbox(value=True, label='Inpaint: Overlay Image')            
             with gr.Accordion(label="Advanced", open=False):
                 with gr.Row(variant="compact"):
                     cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.02, label='CFG Rescale', value=0.0)
@@ -114,6 +114,9 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             self.paste_field_names.append(field_name)
             
         return [enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local]
+        
+    def can_init_script(self,p):
+        return hasattr(p,"init_images")
         
     def patched_process(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
         
@@ -202,8 +205,16 @@ class NAIGENScriptText(nai_script.NAIGENScript):
         
             
         extra_noise = max(getattr(p,"extra_noise",0) , extra_noise)        
-        image_mask = p.image_mask or self.mask
         
+        if do_local == 0 and p.denoising_strength == 0:
+            for i in range(len(p.init_images)):
+                self.images.append(p.init_images[i])
+                self.texts.append(self.infotext(p,i))
+
+            p.nai_processed = Processed(p, self.images, p.seed, self.texts[0], subseed=p.all_subseeds[0], infotexts = self.texts) 
+            return
+        
+        image_mask = p.image_mask or self.mask        
         crop = None
         if image_mask is not None: 
             if p.inpaint_full_res:
@@ -235,15 +246,20 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
             
             return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,overlay=add_original_image, mask = image_mask)        
-        suffix ="-nai-init-image" if do_local > 0 else ""
+        suffix ="-nai-init-image" if do_local > 0 else ""       
         
-        self.get_batch_images(p, getparams, save_images = not p.inpaint_full_res , save_suffix =suffix ,dohash = False, query_batch_size=1)
+        
+        self.get_batch_images(p, getparams, save_images = not p.inpaint_full_res or shared.opts.data.get('nai_api_save_fragments', False) , save_suffix =suffix ,dohash = False, query_batch_size=1)
         
         if crop is not None:
+            fragments = self.images.copy() if shared.opts.data.get('nai_api_all_images', False) else None
             for i in range(len(self.images)):
                 image = apply_overlay(self.images[i], paste_to, 0, init_masked)
-                images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix= suffix)
+                #images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix= suffix)
                 self.images[i] = image
+            if fragments is not None:
+                self.images+=fragments
+                self.texts*=2
 
         if do_local == 0:
            p.nai_processed = Processed(p, self.images, p.seed, self.texts[0], subseed=p.all_subseeds[0], infotexts = self.texts) 
@@ -260,58 +276,5 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             self.include_nai_init_images_in_results=True
             
         
-
     def post_process_i2i(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local,extra_noise,add_original_image,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
-        if p.init_images is None or len(p.init_images) == 0:
-            return None
-        self.setup_sampler_name(p, sampler)
-        if cost_limiter: self.limit_costs(p)
-        self.adjust_resolution(p)
-        p.disable_extra_networks=True
-
-        p.batch_size = p.n_iter * p.batch_size
-        p.n_iter = 1        
-        image_mask = p.image_mask
-        
-        crop = None
-        if image_mask is not None: 
-            if p.inpaint_full_res:
-                mask = image_mask.convert('L')
-                crop = masking.expand_crop_region(masking.get_crop_region(np.array(mask), p.inpaint_full_res_padding), p.width, p.height, mask.width, mask.height)
-                x1, y1, x2, y2 = crop
-                image_mask = images.resize_image(2, mask.crop(crop), p.width, p.height)
-                paste_to = (crop[0], crop[1], crop[2]-crop[0], crop[3]-crop[1])                
-                init_masked=[]
-                for i in range(len(p.init_images)):
-                    image = p.init_images[i]                
-                    image_masked = Image.new('RGBa', (image.width, image.height))
-                    image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(p.image_mask.convert('L')))
-                    init_masked.append(image_masked.convert('RGBA'))
-
-        def getparams(i):
-            seed =int(p.all_seeds[i])
-            
-            image= p.init_images[len(p.init_images) % p.batch_size]
-            
-            if crop is not None:
-                image = image.crop(crop)
-                image = images.resize_image(2, image, p.width, p.height)
-
-            prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
-            
-            return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = 0, ucPreset = 2 , noise = 0, image = image, strength= p.denoising_strength,overlay=True, mask = image_mask)        
-                
-        self.images = []
-        self.texts = []
-        self.hashes = []
-        
-        self.get_batch_images(p, getparams, save_images = False ,dohash = False, query_batch_size=1)        
-        
-        if crop is not None:
-            for i in range(len(self.images)):
-                image = apply_overlay(self.images[i], paste_to, 0, init_masked)
-                images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i])
-                self.images[i] = image
-                
-        return Processed(p, self.images, p.seed, self.texts[0], subseed=p.subseed, infotexts = self.texts) 
-        
+        return self.do_post_process(p,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,add_original_image)

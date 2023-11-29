@@ -29,7 +29,6 @@ def get_headers(key):
         'accept-language': "en-US,en;q=0.9,ja;q=0.8",   
         'Authorization':"Bearer "+ key,     
         'content-type': "application/json",
-        'pragma': "no-cache",
         'sec-ch-ua': "\"Google Chrome\";v=\"119\", \"Chromium\";v=\"119\", \"Not?A_Brand\";v=\"24\"",
         'sec-ch-ua-mobile': "?0",
         'sec-ch-ua-platform': "\"Windows\"",
@@ -41,10 +40,10 @@ def POST(key,parameters, g =False):
     headers = get_headers(key)
     parameters = parameters.encode()
     if g: 
-        import grequests    
-        import requests    
+        import grequests
+        import requests
         return grequests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters)
-    import requests    
+    import requests
     return requests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters)
 
 def LOAD(response,parameters):
@@ -98,9 +97,8 @@ def prompt_is_nai(p):
 def subscription_status(key):
     if not key:
         return -1,False,0,0        
-    headers = get_headers(key)
     import requests    
-    response = requests.get('https://api.novelai.net/user/subscription',headers=headers)
+    response = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key))
     try:
         if response.status_code==200:
             content = response.json()
@@ -220,12 +218,14 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     prompt=clean(prompt)
     neg=clean(neg)
     
-    if "ddim" in sampler or model != NAIv3: 
+    if prompt == "": prompt = " "
+    
+    if "ddim" in sampler.lower() or model != NAIv3: 
         noise_schedule=""
     else:
         if noise_schedule.lower() not in ["exponential","polyexponential","karras","native"]: 
             if sampler != "k_dpmpp_2m": noise_schedule = "native" 
-            else:  noise_schedule = "exponential"                 
+            else:  noise_schedule = "exponential"
         if "_a" in sampler and noise_schedule == "karras": noise_schedule = "native"
         noise_schedule = f',"noise_schedule":"{noise_schedule}"'
     
@@ -281,6 +281,9 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             model += "-inpainting"
             mask = f',"mask":"{mask}"'
             action="infill"
+            if "ddim" in sampler.lower():
+                print("DDIM Not supported for Inpainting, switching to Euler")
+                sampler = "k_euler"
         #else: overlay = False
     else:
         strength = ""
