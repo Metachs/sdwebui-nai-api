@@ -345,7 +345,8 @@ class NAIGENScript(scripts.Script):
         if crop is not None:
             for i in range(len(self.images)):
                 image = apply_overlay(self.images[i], paste_to, 0, init_masked)
-                images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix="-nai-post")
+                if shared.opts.data.get('nai_api_save_fragments', False):
+                    images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix="-nai-post")
                 self.images[i] = image
                 
         return Processed(p, self.images, p.seed, self.texts[0], subseed=p.subseed, infotexts = self.texts)
