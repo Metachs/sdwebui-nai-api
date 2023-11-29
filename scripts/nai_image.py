@@ -62,7 +62,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
                 smea = gr.Radio(label="SMEA",value="Off",choices=["SMEA","DYN","Off"],type="value",show_label=False)            
             with gr.Row(variant="compact"):
                 img_resize_mode = gr.Dropdown(label='Resize Mode',  choices=["Resize","Crop","Fill","None (NAI Resize)"], value = "Resize", type="index")
-                extra_noise=gr.Slider(minimum=0.0, maximum=1.0 ,step=0.01, label='noise', value=0.0)
+                extra_noise=gr.Slider(minimum=0.0, maximum=1.0 ,step=0.01, label='Noise', value=0.0)
                 add_original_image = gr.Checkbox(value=True, label='Inpaint: Overlay Image')            
             with gr.Accordion(label="Advanced", open=False):
                 with gr.Row(variant="compact"):
