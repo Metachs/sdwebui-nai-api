@@ -56,7 +56,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
                 do_local = gr.Dropdown(value=modes[0],choices= modes,type="index", label="Mode")
             with gr.Row(variant="compact"):
                 model = gr.Dropdown(label= "Model",value=nai_api.NAIv3,choices=nai_api.nai_models,type="value",show_label=False)
-                sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto Sampler",*nai_api.NAI_SAMPLERS],type="value",show_label=False)
+                sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto",*nai_api.NAI_SAMPLERS],type="value",show_label=False)
             with gr.Row(variant="compact"):
                 dynamic_thresholding = gr.Checkbox(value=False, label='Decrisper (Dynamic Thresholding)',min_width=64)
                 smea = gr.Radio(label="SMEA",value="Off",choices=["SMEA","DYN","Off"],type="value",show_label=False)            
@@ -82,7 +82,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
                     ucPreset = gr.Radio(label="Negative Preset",value="None",choices=["Heavy","Light","None"],type="index")           
                     convert_prompts = gr.Dropdown(label="Convert Prompts for NAI ",value="Auto",choices=["Auto","Never","Always"])
                     cost_limiter = gr.Checkbox(value=True, label="Force Opus Free Gen Size/Step Limit")
-                    nai_post = gr.Checkbox(value=True, label="Use NAI for Post Processing (ADetailer)")
+                    nai_post = gr.Checkbox(value=True, label="Use NAI for Inpainting with ADetailer")
         def on_enable(e,h):
             if e and not self.api_connected: return self.connect_api()
             return e,h
@@ -104,7 +104,6 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             (nai_denoise_strength, f'{PREFIX} '+ 'nai_denoise_strength'),
             (nai_steps, f'{PREFIX} '+ 'nai_steps'),
             (nai_cfg, f'{PREFIX} '+ 'nai_cfg'),
-            #(nai_resolution_scale, f'{PREFIX} '+ 'nai_resolution_scale'),
             (add_original_image, f'{PREFIX} '+ 'add_original_image'),
             (extra_noise, f'{PREFIX} '+ 'extra_noise'),
         ]
@@ -255,7 +254,6 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             fragments = self.images.copy() if shared.opts.data.get('nai_api_all_images', False) else None
             for i in range(len(self.images)):
                 image = apply_overlay(self.images[i], paste_to, 0, init_masked)
-                #images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix= suffix)
                 self.images[i] = image
             if fragments is not None:
                 self.images+=fragments

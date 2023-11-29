@@ -79,6 +79,7 @@ class NAIGENScript(scripts.Script):
         self.failure=""
         self.running=True
         self.do_nai_post=False        
+        self.in_post_process=False        
         
     def title(self):
         return self.NAISCRIPTNAME
@@ -86,6 +87,12 @@ class NAIGENScript(scripts.Script):
 
     def show(self, is_img2img):
         return False
+        
+    def before_process(self, p,*args, **kwargs):
+        patch_pi()        
+        
+    def postprocess(self, p,*args, **kwargs):
+        unpatch_pi()
         
     def process_inner(self, p, **kwargs):
         pass
@@ -239,7 +246,7 @@ class NAIGENScript(scripts.Script):
                     self.hashes.append(None)
                     self.texts.append("")
                     strip = re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters))
-                    print(p,f'{strip}')                      
+                    print(f'{strip}')                      
                     
                     results.append(POST(key, parameters, g = query_batch_size > 1))
                     resultsidx.append(i)               
@@ -351,6 +358,7 @@ POSTPROCESS = 0
 running_scripts=[] # This script stack is probably unnecessary
     
 def process_images_patched(p):
+    unpatch_pi()
     def FindScript(p):
         if p.scripts is None:
             return None
@@ -376,19 +384,22 @@ def process_images_patched(p):
     is_post =False
     if script is None and len(running_scripts) >= POSTPROCESS:
         script = running_scripts[POSTPROCESS-1]   
+        if script.do_nai_post: 
+            is_post=True
+            print("Inserting Post Process Script")
+        else: script=None
+    elif script is not None and getattr(script,"in_post_process",False):
         if script.do_nai_post: is_post=True
-        else: script=None        
+        else: script=None
     if script is None or hasattr(p, "NAI_enable") and not p.NAI_enable: 
         return modules.processing.process_images_pre_patch_4_nai(p)
         
     args = get_args()
     
-    
     if args is None: return modules.processing.process_images_pre_patch_4_nai(p)
     if not is_post:
         script.initialize()        
-        script.patched_process(p, *args)        
-        
+        script.patched_process(p, *args)
         if script.failed: raise Exception(script.failure)
         if script.disabled: return modules.processing.process_images_pre_patch_4_nai(p)
     p.nai_processed=None
@@ -398,9 +409,7 @@ def process_images_patched(p):
         originalprocess(p, **kwargs)
         p.scripts.process = originalprocess
         originalprocess=None
-        
         if is_post:
-            print(f'isinstance(p, StableDiffusionProcessingImg2Img) {isinstance(p, StableDiffusionProcessingImg2Img)}')
             if isinstance(p, StableDiffusionProcessingImg2Img) or hasattr(p, "init_images"):
                 if hasattr(script,"post_process_i2i"):
                     r = script.post_process_i2i(p,*args)
@@ -409,7 +418,6 @@ def process_images_patched(p):
                         raise NAIGenException
         else:
             script.process_inner(p, *args) # Sets p.nai_processed if images have been processed
-
         if script.failed: raise Exception(script.failure)
         if hasattr(p,"nai_processed") and p.nai_processed is not None:
             # Make sure post process is called, at least one extension uses it to clean up from things done in process. 
@@ -424,7 +432,8 @@ def process_images_patched(p):
             
             POSTPROCESS += 1
 
-            try:
+            try:            
+                script.in_post_process=True
                 r = p.nai_processed
                 new_images=[]
                 new_info=[]
@@ -435,6 +444,7 @@ def process_images_patched(p):
                     image = r.images[i]
                     pp = scripts.PostprocessImageArgs(image)
                     p.scripts.postprocess_image(p, pp)
+                    
                     images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p)
                     if image != pp.image: 
                         image=pp.image
@@ -446,12 +456,14 @@ def process_images_patched(p):
                 r.infotexts = new_info+r.infotexts
 
                 p.scripts.postprocess(p, p.nai_processed) 
-            finally:
+            finally:                
+                script.in_post_process=False
                 POSTPROCESS -= 1
             
             raise NAIGenException
                 
     try:
+        ori_ad = ad_add_whitelist(script) if script.do_nai_post else None
         p.scripts.process= process_patched.__get__(p.scripts, scripts.ScriptRunner)
         results = modules.processing.process_images_pre_patch_4_nai(p)        
         if originalprocess is not None:p.scripts.process=originalprocess
@@ -468,14 +480,57 @@ def process_images_patched(p):
     except NAIGenException:
         return p.nai_processed
     finally: 
+        ad_rem_whitelist(ori_ad)                
+        
         if originalprocess is not None:p.scripts.process=originalprocess
         
+PERMANT_PATCH = not hasattr(scripts.Script, 'before_process')
+PATCHED = False
+if PERMANT_PATCH:        
+    if not hasattr(modules.processing, 'process_images_pre_patch_4_nai'):
+        modules.processing.process_images_pre_patch_4_nai = modules.processing.process_images_inner     
+        print("WARNING: Out of date sd-webui detected. Permanently Patching Image Processing for NAI Generator Script. This may not work depending on the extensions present, if anything stops working, disable all other extensions and try again.")
+    modules.processing.process_images_inner = process_images_patched
 
-if not hasattr(modules.processing, 'process_images_pre_patch_4_nai'):
-    modules.processing.process_images_pre_patch_4_nai = modules.processing.process_images_inner     
-    print("Patching Image Processing for NAI Generator Script.")
-modules.processing.process_images_inner = process_images_patched
+def patch_pi():
+    global PATCHED
+    global PERMANT_PATCH
+    if PERMANT_PATCH or PATCHED: return
+    PATCHED=True
+    if modules.processing.process_images_inner == process_images_patched:        
+        print ("Warning: process_images_inner already patched")
+    else:        
+        modules.processing.process_images_pre_patch_4_nai = modules.processing.process_images_inner     
+        print("Patching Image Processing for NAI Generator Script.")
+        modules.processing.process_images_inner = process_images_patched
+        
+def unpatch_pi():
+    global PATCHED
+    global PERMANT_PATCH
+    if PERMANT_PATCH or not PATCHED: return
+    PATCHED=False
+    if (process_images_patched != modules.processing.process_images_inner):
+        print ("ERROR: process_images_inner Not patched!")
+    else:            
+        print("Unpatching Image Processing for NAI Generator Script.")
+        modules.processing.process_images_inner = modules.processing.process_images_pre_patch_4_nai
 
+def ad_add_whitelist(script):
+    o = "ad_script_names"    
+    from pathlib import Path
+    name = Path(script.filename).stem.strip()
+    if o not in shared.opts.data: return None
+    if name not in shared.opts.data[o]:
+        ori = shared.opts.data[o]
+        shared.opts.data[o] = f'{name},{ori}'
+        return ori
+    return None
+
+def ad_rem_whitelist(ori):
+    o = "ad_script_names"    
+    if ori is None or o not in shared.opts.data: return
+    shared.opts.data[o] = ori
+    
 
 # def on_script_unloaded():
     # if hasattr(modules.processing, 'process_images_pre_patch_4_nai'):

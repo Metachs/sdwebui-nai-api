@@ -210,6 +210,7 @@ def prompt_to_nai(p, parenthesis_only = False):
     
 def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False):
     def clean(p):
+        if type(p) != str: p=f'{p}'
         #TODO: Look for a better way to do this        
         p=re.sub("(?<=[^\\\\])\"","\\\"" ,p)
         p=re.sub("\r?\n"," " ,p)
@@ -218,7 +219,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     prompt=clean(prompt)
     neg=clean(neg)
     
-    if prompt == "": prompt = " "
+    if prompt == "": prompt = " "    
+    if model not in nai_models: model = NAIv3
     
     if "ddim" in sampler.lower() or model != NAIv3: 
         noise_schedule=""

@@ -49,7 +49,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
                 refresh.click(fn= lambda: self.connect_api(), inputs=[], outputs=[enable,hr])
             with gr.Row(variant="compact"):
                 model = gr.Dropdown(label= "Model",value=nai_api.NAIv3,choices=nai_api.nai_models,type="value",show_label=False)
-                sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto Sampler",*nai_api.NAI_SAMPLERS],type="value",show_label=False)
+                sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto",*nai_api.NAI_SAMPLERS],type="value",show_label=False)
             with gr.Row(variant="compact"):
                 dynamic_thresholding = gr.Checkbox(value=False, label='Decrisper (Dynamic Thresholding)',min_width=64)
                 smea = gr.Radio(label="SMEA",value="Off",choices=["SMEA","DYN","Off"],type="value",show_label=False)            
@@ -61,11 +61,10 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             with gr.Accordion(label="Options", open=False):
                 with gr.Row(variant="compact"):
                     qualityToggle = gr.Radio(value="Off", label="Quality Preset",choices=["Off","On"],type="index") 
-                    #qualityToggle = gr.Checkbox(value=False, label="Quality Preset") 
                     ucPreset = gr.Radio(label="Negative Preset",value="None",choices=["Heavy","Light","None"],type="index")           
                     convert_prompts = gr.Dropdown(label="Convert Prompts for NAI ",value="Auto",choices=["Auto","Never","Always"])
                     cost_limiter = gr.Checkbox(value=True, label="Force Opus Free Gen Size/Step Limit")
-                    nai_post = gr.Checkbox(value=True, label="Use NAI for Post Processing (ADetailer)")
+                    nai_post = gr.Checkbox(value=True, label="Use NAI for Inpainting with ADetailer")
         def on_enable(e,h):
             if e and not self.api_connected:
                 return self.connect_api()
@@ -119,7 +118,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
     def can_init_script(self,p):
         return hasattr(p,"enable_hr")
 
-    def process_inner(self, p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset, **kwargs):
+    def process_inner(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,**kwargs):
         if not enable: self.disabled=True
         if self.disabled: return 
         
