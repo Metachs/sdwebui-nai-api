@@ -436,26 +436,22 @@ def process_images_patched(p):
             try:            
                 script.in_post_process=True
                 r = p.nai_processed
-                new_images=[]
-                new_info=[]
                 for i in range(len(r.all_prompts)):
                     p.iteration = int( i/p.n_iter)
                     p.batch_index = i % p.batch_size
-                
                     image = r.images[i]
-                    pp = scripts.PostprocessImageArgs(image)
-                    p.scripts.postprocess_image(p, pp)
-                    
                     images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p)
+                    pp = scripts.PostprocessImageArgs(image)
+                    p.scripts.postprocess_image(p, pp)                    
                     if image != pp.image: 
-                        image=pp.image
-                        images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p)
-                        new_images.append(pp.image)
-                        new_info.append(r.infotexts[i])
-                        
-                r.images = new_images+r.images
-                r.infotexts = new_info+r.infotexts
-
+                        r.images[i]=pp.image
+                        images.save_image(pp.image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p)
+                        r.images.append(image)
+                        r.infotexts.append(r.infotexts[i])
+                        r.all_prompts.append(r.all_prompts[i])
+                        r.all_negative_prompts.append(r.all_negative_prompts[i])
+                        r.all_seeds.append(r.all_seeds[i])
+                        r.all_subseeds.append(r.all_subseeds[i])                   
                 p.scripts.postprocess(p, p.nai_processed) 
             finally:                
                 script.in_post_process=False

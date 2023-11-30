@@ -15,12 +15,6 @@ from PIL import Image, ImageFilter, ImageOps
 from modules import masking
 import numpy as np
 
-NAIv1 = "nai-diffusion"
-NAIv1c = "safe-diffusion"
-NAIv1f = "nai-diffusion-furry"
-NAIv2 = "nai-diffusion-2"
-NAIv3 = "nai-diffusion-3"
-
 PREFIX = 'NAI'
 
 class NAIGENScriptText(nai_script.NAIGENScript):
@@ -67,7 +61,7 @@ class NAIGENScriptText(nai_script.NAIGENScript):
             with gr.Accordion(label="Advanced", open=False):
                 with gr.Row(variant="compact"):
                     cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.02, label='CFG Rescale', value=0.0)
-                    uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.05, label='Uncond Scale', value=1.0,)
+                    uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.05, label='Uncond Scale', value=1.0)
                     noise_schedule = gr.Dropdown(label="Schedule",value="recommended",choices=["recommended","exponential","polyexponential","karras","native"],type="value")
             with gr.Accordion(label='Local Second Pass Overrides: Ignored if 0', open=False ):                    
                 with gr.Row(variant="compact"):

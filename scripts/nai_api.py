@@ -219,6 +219,9 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     prompt=clean(prompt)
     neg=clean(neg)
     
+    if type(uncond_scale) != float and type (uncond_scale) != int: uncond_scale = 1.0
+    if type(cfg_rescale) != float and type (cfg_rescale) != int: cfg_rescale = 0.0
+    
     if prompt == "": prompt = " "    
     if model not in nai_models: model = NAIv3
     
@@ -282,7 +285,10 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         if mask is not None:
             model += "-inpainting"
             mask = f',"mask":"{mask}"'
+            
             action="infill"
+            sm=False
+            sm_dyn=False
             if "ddim" in sampler.lower():
                 print("DDIM Not supported for Inpainting, switching to Euler")
                 sampler = "k_euler"
