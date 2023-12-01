@@ -440,12 +440,13 @@ def process_images_patched(p):
                     p.iteration = int( i/p.n_iter)
                     p.batch_index = i % p.batch_size
                     image = r.images[i]
-                    images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p)
+                    _,existing_info = images.read_info_from_image(image)
+                    images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info)
                     pp = scripts.PostprocessImageArgs(image)
                     p.scripts.postprocess_image(p, pp)                    
                     if image != pp.image: 
                         r.images[i]=pp.image
-                        images.save_image(pp.image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p)
+                        images.save_image(pp.image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info)
                         r.images.append(image)
                         r.infotexts.append(r.infotexts[i])
                         r.all_prompts.append(r.all_prompts[i])

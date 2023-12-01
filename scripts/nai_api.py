@@ -161,6 +161,8 @@ def prompt_to_nai(p, parenthesis_only = False):
         start = end
         
     def adjustments(v):
+        if v==1: return 1
+        if v<=0: return 25
         if v < 1: v = 1/v
         m = 1
         for i in range(0,25):
@@ -270,8 +272,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         #image=image.convert(mode="RGBA")
         image_byte_array = BytesIO()
         image.save(image_byte_array, format='PNG')
-        image = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")        
-
+        image = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
+    
     if image is not None:    
         action = 'img2img'
         image = f',"image":"{image}"'

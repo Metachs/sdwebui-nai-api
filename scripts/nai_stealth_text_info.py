@@ -10,8 +10,10 @@ from gradio import processing_utils
 import PIL
 import warnings
 import gzip
+import json
 
 #Fix for not saving PNGInfo on saved images, probably a better way but this was the easiest
+# TODO: See if I can preserve both A1111 and NAI metadata.
 
 def add_stealth_pnginfo(params: ImageSaveParams):
     
@@ -21,23 +23,10 @@ def add_stealth_pnginfo(params: ImageSaveParams):
         return
     if not params.filename.endswith('.png') or params.pnginfo is None:
         return
-    if 'parameters' not in params.pnginfo:
+    if params.pnginfo.get("Software", None) == "NovelAI":
+        add_data_nai(params.image, json.dumps(items))    
         return
-    geninfo, items = original_read_info_from_image(params.image)
-    if items.get("Software", None) == "NovelAI":
-        import json
-        add_data_nai(params.image, json.dumps(items))
-        #params.pnginfo = items
-        def move(s):
-            nonlocal params
-            o = items.get(s,None)
-            if o is not None: params.pnginfo[s] = items[s]
-        move('Title')
-        move('Description')
-        move('Software')
-        move('Source')
-        move('Generation time')
-        move('Comment')
+    if 'parameters' not in params.pnginfo:
         return
     if nai_api_png_info == 'NAI Only': return
     add_data(params, 'alpha', True)

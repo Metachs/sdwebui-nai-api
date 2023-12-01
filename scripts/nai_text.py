@@ -15,14 +15,7 @@ from modules.processing import apply_overlay
 from modules import masking
 import numpy as np
 
-
-NAIv1 = "nai-diffusion"
-NAIv1c = "safe-diffusion"
-NAIv1f = "nai-diffusion-furry"
-NAIv2 = "nai-diffusion-2"
-NAIv3 = "nai-diffusion-3"
-
-hashdic = {}    
+hashdic = {} # Unused in released version
 
 PREFIX = 'NAI'
 
