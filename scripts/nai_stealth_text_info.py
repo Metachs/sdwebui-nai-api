@@ -24,7 +24,7 @@ def add_stealth_pnginfo(params: ImageSaveParams):
     if not params.filename.endswith('.png') or params.pnginfo is None:
         return
     if params.pnginfo.get("Software", None) == "NovelAI":
-        add_data_nai(params.image, json.dumps(items))    
+        add_data_nai(params.image, json.dumps(params.pnginfo))    
         return
     if 'parameters' not in params.pnginfo:
         return
