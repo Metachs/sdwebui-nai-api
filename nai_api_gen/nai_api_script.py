@@ -577,4 +577,4 @@ class NAIGENScriptBase(scripts.Script):
                 self.texts*=2
         elif self.mask is not None:
             for i in range(len(self.images)):
-            self.images[i] = apply_overlay(self.images[i], None, 0, self.init_masked)
+                self.images[i] = apply_overlay(self.images[i], None, 0, self.init_masked)
