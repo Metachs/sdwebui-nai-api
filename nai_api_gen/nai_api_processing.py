@@ -1,6 +1,7 @@
 from modules import scripts, script_callbacks, shared 
 import modules 
 from nai_api_gen import nai_api
+from nai_api_gen import nai_stealth_text_info
 import modules.processing
 import modules.images as images
 
@@ -33,7 +34,7 @@ def post_process_images(p,script,is_post):
             p.iteration = int( i/p.n_iter)
             p.batch_index = i % p.batch_size
             image = r.images[i]
-            _,existing_info = images.read_info_from_image(image)
+            _,existing_info = nai_stealth_text_info.read_info_from_image_stealth(image)
             print(not is_post and shared.opts.samples_save and not p.do_not_save_samples, is_post, shared.opts.samples_save,p.do_not_save_samples)
             save_images = not is_post and shared.opts.samples_save and not p.do_not_save_samples                    
             pp = scripts.PostprocessImageArgs(image)
@@ -116,6 +117,9 @@ def process_images_patched(p):
         return results
     except NAIGenException:
         return p.nai_processed
+    except Exception as e:
+        print(e) #TODO: See if there is a better way to log exceptions
+        raise
     finally: 
         ad_rem_whitelist(ori_ad)        
         if originalprocess is not None: p.scripts.process=originalprocess

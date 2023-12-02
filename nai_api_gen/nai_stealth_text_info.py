@@ -27,11 +27,11 @@ def script_setup():
     
     script_callbacks.on_ui_settings(on_ui_settings)
     script_callbacks.on_before_image_saved(add_stealth_pnginfo)
-    script_callbacks.on_after_component(on_after_component_change_pnginfo_image_mode)    
-    script_callbacks.on_script_unloaded(script_unload)
+    script_callbacks.on_after_component(on_after_component_change_pnginfo_image_mode)
+    # Temporarily disable unloading/undoing function hijacks
+    #script_callbacks.on_script_unloaded(script_unload)
     
     if(original_read_info_from_image is not None): return
-    
     original_read_info_from_image = images.read_info_from_image
     images.read_info_from_image = read_info_from_image_stealth
     original_send_image_and_dimensions = generation_parameters_copypaste.send_image_and_dimensions
@@ -39,8 +39,6 @@ def script_setup():
     original_resize_image = images.resize_image
     images.resize_image = stealth_resize_image
 
-    
-    
 def script_unload():
     global original_read_info_from_image
     global original_resize_image
