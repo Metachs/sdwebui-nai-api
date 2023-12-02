@@ -52,6 +52,7 @@ def POST(key,parameters, g =False):
 
 
 def LOAD(response,parameters):
+    import requests
     if isinstance(requests.exceptions.RequestException):
         if isinstance(response,requests.Timeout):
             print(f"NAI Image Load Failure - Request Timeout")
