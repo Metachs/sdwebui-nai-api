@@ -27,6 +27,7 @@ from modules.processing import process_images,apply_overlay,Processed
 from PIL import Image, ImageFilter, ImageOps
 from modules import masking
 import numpy as np
+import cv2
 
 from nai_api_gen.nai_api import NAIGenParams 
 
@@ -345,7 +346,14 @@ class NAIGENScriptBase(scripts.Script):
                 mask = mask.convert('L')
                 print(mask.width, mask.height)
                 if p.inpainting_mask_invert: mask = ImageOps.invert(mask)
-                if p.mask_blur > 0: mask = mask.filter(ImageFilter.GaussianBlur(p.mask_blur))
+                if p.mask_blur > 0:
+                    np_mask = np.array(mask)
+                    kernel_size = 2 * int(2.5 * p.mask_blur + 0.5) + 1
+                    np_mask = cv2.GaussianBlur(np_mask, (kernel_size, kernel_size), p.mask_blur)
+                    mask = Image.fromarray(np_mask)
+
+                self.mask_for_overlay = mask
+
                 if p.inpaint_full_res:
                     overlay_mask = mask
                     crop = masking.expand_crop_region(masking.get_crop_region(np.array(mask), p.inpaint_full_res_padding), p.width, p.height, mask.width, mask.height)
@@ -549,16 +557,24 @@ class NAIGENScriptBase(scripts.Script):
                     import modules.paths as paths
                     with open(os.path.join(paths.data_path, "params.txt"), "w", encoding="utf8") as file:
                         file.write(Processed(p, []).infotext(p, 0))
-            
-        
+        # The following is Only functional because nothing actually uses batching yet
         if self.crop is not None:
             crop = self.crop
-            fragments = self.images.copy() if shared.opts.data.get('nai_api_all_images', False) else None
+            fragments = self.images.copy() if shared.opts.data.get('nai_api_all_images', False) else []
             for i in range(len(self.images)):
                 image = apply_overlay(self.images[i],  (self.crop[0], self.crop[1], self.crop[2]-self.crop[0], self.crop[3]-self.crop[1]), 0, self.init_masked)
                 self.images[i] = image
-            if fragments is not None:
+                if hasattr(self, 'mask_for_overlay') and self.mask_for_overlay and any([shared.opts.save_mask, shared.opts.save_mask_composite, shared.opts.return_mask, shared.opts.return_mask_composite]):
+                    if shared.opts.return_mask:
+                        image_mask = self.mask_for_overlay.convert('RGB')
+                        fragments.append(image_mask)
+
+                    if shared.opts.return_mask_composite:
+                        image_mask_composite = Image.composite(image.convert('RGBA').convert('RGBa'), Image.new('RGBa', image.size), images.resize_image(2, self.mask_for_overlay, image.width, image.height).convert('L')).convert('RGBA')
+                        fragments.append(image_mask_composite)
+            if len(fragments) > 0:
                 self.images+=fragments
                 self.texts*=2
-        elif self.mask is not None and overlay:
+        elif self.mask is not None:
+            for i in range(len(self.images)):
             self.images[i] = apply_overlay(self.images[i], None, 0, self.init_masked)
