@@ -318,7 +318,10 @@ class NAIGENScriptBase(scripts.Script):
         if not enable: self.disabled=True
         if self.disabled: return 
         isimg2img=self.isimg2img
-        do_local_img2img=self.do_local_img2img        
+        do_local_img2img=self.do_local_img2img       
+
+        if do_local_img2img== 1 or do_local_img2img == 2: restore_local(p)
+        
         if isimg2img and do_local_img2img == 0 and p.denoising_strength == 0:
             for i in range(len(p.init_images)):
                 self.images.append(p.init_images[i])
@@ -326,12 +329,13 @@ class NAIGENScriptBase(scripts.Script):
             p.nai_processed = Processed(p, self.images, p.seed, self.texts[0], subseed=p.all_subseeds[0], infotexts = self.texts) 
             return
         
-        mask = None if not isimg2img else (p.image_mask or self.mask)  
+        mask = None if not isimg2img or inpaint_mode == 2 else (p.image_mask or self.mask)  
         init_masked = None
-        
+        print("nai_preprocess")
         crop = None
         init_images=[]   
         if isimg2img:            
+            print ("init_images: " ,len(p.init_images))            
             for i in range(len(p.init_images)):
                 image = images.flatten(p.init_images[i], shared.opts.img2img_background_color)
                 if not p.inpaint_full_res:
@@ -367,13 +371,16 @@ class NAIGENScriptBase(scripts.Script):
                     image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(overlay_mask.convert('L')))
                     init_masked.append(image_masked.convert('RGBA'))
                     
-                self.mask = mask
-                self.init_masked = init_masked
-                self.crop = crop
+            self.mask = mask
+            self.init_masked = init_masked
+            self.crop = crop
             self.init_images = init_images
-        else: self.init_images = None
-               
-    
+        else: 
+            self.init_images = None
+            self.mask = None
+            self.init_masked = None
+            self.crop = None
+
     def nai_image_processsing(self,p, *args, **kwargs):
         self.nai_preprocess(p, *args, **kwargs)
         if not self.use_batch_processing: self.nai_generate_images(p, *args, **kwargs)
@@ -394,6 +401,7 @@ class NAIGENScriptBase(scripts.Script):
 
     def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
         if self.disabled or p.nai_processed is not None: return 
+        print("nai_generate_images")
         
         isimg2img=self.isimg2img
         do_local_img2img=self.do_local_img2img
@@ -407,6 +415,9 @@ class NAIGENScriptBase(scripts.Script):
         cfg_rescale = getattr(p,f'{PREFIX}_'+ 'cfg_rescale',cfg_rescale)        
         extra_noise = getattr(p,f'{PREFIX}_'+ 'extra_noise',extra_noise)        
         add_original_image = getattr(p,f'{PREFIX}_'+ 'add_original_image',add_original_image)        
+        
+        if inpaint_mode == 1 or getattr(p,"inpaint_full_res",False):
+            add_original_image = False
         
         p.extra_generation_params[f'{PREFIX} enable I'] = True
         if sampler.lower() != "auto": p.extra_generation_params[f'{PREFIX} sampler'] = sampler
@@ -445,7 +456,7 @@ class NAIGENScriptBase(scripts.Script):
             
             return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,overlay=add_original_image, mask = self.mask if inpaint_mode!=1 else None)
         
-        self.get_batch_images(p, getparams, save_images = isimg2img and getattr(p,"inpaint_full_res") and shared.opts.data.get('nai_api_save_fragments', False), save_suffix ="-nai-init-image" if do_local_img2img > 0 else "" ,dohash = False, query_batch_size=self.query_batch_size)
+        self.get_batch_images(p, getparams, save_images = isimg2img and getattr(p,"inpaint_full_res",False) and shared.opts.data.get('nai_api_save_fragments', False), save_suffix ="-nai-init-image" if do_local_img2img > 0 else "" ,dohash = False, query_batch_size=self.query_batch_size, overlay = inpaint_mode == 1 or getattr(p,"inpaint_full_res",False))
         
         if not self.use_batch_processing:
             if do_local_img2img == 0:
@@ -462,12 +473,14 @@ class NAIGENScriptBase(scripts.Script):
                 self.include_nai_init_images_in_results=True            
             
     
-    def get_batch_images(self, p, getparams, save_images = False , save_suffix = "", dohash = False, query_batch_size = 1, is_post = False):          
+    def get_batch_images(self, p, getparams, save_images = False , save_suffix = "", dohash = False, query_batch_size = 1, is_post = False, overlay = True):          
         key = get_api_key()
                
         cur_iter = p.iteration
         iter_count = p.n_iter
         batch_size = p.batch_size
+        print("Loading Images: ",cur_iter, iter_count,batch_size)
+        
         if not self.use_batch_processing:
             if self.do_local_img2img > 0:
                 iter_count = 1
@@ -493,10 +506,11 @@ class NAIGENScriptBase(scripts.Script):
                     self.images.append(None)
                     self.hashes.append(None)
                     self.texts.append("")
+                    print("Loading Image",i)
                     strip = re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters))
-                    print(f'{strip}')                      
-                    
+                    print(f'{strip}')                    
                     results.append(nai_api.POST(key, parameters, g = query_batch_size > 1))
+                    print("Query Complete",i)
                     resultsidx.append(i)               
                 
                     
@@ -505,12 +519,14 @@ class NAIGENScriptBase(scripts.Script):
                 results = grequests.map(results)
             
 
+            print("Reading Result Images",i)
+            
             for ri in range(len(results)):
                 result = results[ri]
                 i = resultsidx[ri]
                 image,code =  nai_api.LOAD(result, parameters)
-                #TODO: Handle time out errors
                 if image is None: 
+                    print("Reading Result Images Failed:",ri,i,code)                    
                     self.texts[i] = code
                     continue
                 if dohash:
@@ -520,10 +536,12 @@ class NAIGENScriptBase(scripts.Script):
                     if len(parameters) < 10000: hashdic[parameters] = hash
                     if not os.path.exists(os.path.join(shared.opts.outdir_init_images, f"{hash}.png")):
                         images.save_image(image, path=shared.opts.outdir_init_images, basename=None, extension='png', forced_filename=hash, save_to_dirs=False)
+                print("Read Image:",ri,i)                
                 self.images[i] = image
                 self.texts[i] = self.infotext(p,i)
                     
-                if save_images:
+                if save_images: 
+                    print("Save Image:",ri,i)                
                     images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix=save_suffix)
                 
         for i in range(cur_iter*batch_size, cur_iter*batch_size+batch_size):
@@ -531,30 +549,32 @@ class NAIGENScriptBase(scripts.Script):
                 if iter_count*batch_size == 1:
                     self.fail(p,f'Failed to retrieve image - Error Code: {self.texts[i]}')
                 else: self.comment(p,f'Failed to retrieve image {i} - Error Code: {self.texts[i]}')
-                print("Image Failed to Load, Giving Up")
+                print("Image Failed to Load, Giving Up" ,i)
                 if dohash and batch_size * iter_count == 1:  p.enable_hr = False
                 self.images[i] = Image.new("RGBA",(p.width, p.height), color = "black")
             else:
-                if i == 0 and save_images and not is_post:
+                if i == 0 and save_images and not is_post and dohash:
                     import modules.paths as paths
                     with open(os.path.join(paths.data_path, "params.txt"), "w", encoding="utf8") as file:
                         file.write(Processed(p, []).infotext(p, 0))
-                if self.crop is not None:
-                    crop = self.crop
-                    fragments = self.images.copy() if shared.opts.data.get('nai_api_all_images', False) else []
-                    for i in range(len(self.images)):
-                        image = apply_overlay(self.images[i],  (self.crop[0], self.crop[1], self.crop[2]-self.crop[0], self.crop[3]-self.crop[1]), 0, self.init_masked)
-                        self.images[i] = image
-                        if hasattr(self, 'mask_for_overlay') and self.mask_for_overlay and any([shared.opts.save_mask, shared.opts.save_mask_composite, shared.opts.return_mask, shared.opts.return_mask_composite]):
-                            if shared.opts.return_mask:
-                                image_mask = self.mask_for_overlay.convert('RGB')
-                                fragments.append(image_mask)
+        # The following is Only functional because nothing actually uses batching yet
+        if self.crop is not None:
+            crop = self.crop
+            fragments = self.images.copy() if shared.opts.data.get('nai_api_all_images', False) else []
+            for i in range(len(self.images)):
+                image = apply_overlay(self.images[i],  (self.crop[0], self.crop[1], self.crop[2]-self.crop[0], self.crop[3]-self.crop[1]), 0, self.init_masked)
+                self.images[i] = image
+                if hasattr(self, 'mask_for_overlay') and self.mask_for_overlay and any([shared.opts.save_mask, shared.opts.save_mask_composite, shared.opts.return_mask, shared.opts.return_mask_composite]):
+                    if shared.opts.return_mask:
+                        image_mask = self.mask_for_overlay.convert('RGB')
+                        fragments.append(image_mask)
 
-                            if shared.opts.return_mask_composite:
-                                image_mask_composite = Image.composite(image.convert('RGBA').convert('RGBa'), Image.new('RGBa', image.size), images.resize_image(2, self.mask_for_overlay, image.width, image.height).convert('L')).convert('RGBA')
-                                fragments.append(image_mask_composite)
-                    if len(fragments) > 0:
-                        self.images+=fragments
-                        self.texts*=2
-                elif self.mask is not None:
-                    image = apply_overlay(self.images[i], None, 0, self.init_masked)
+                    if shared.opts.return_mask_composite:
+                        image_mask_composite = Image.composite(image.convert('RGBA').convert('RGBa'), Image.new('RGBa', image.size), images.resize_image(2, self.mask_for_overlay, image.width, image.height).convert('L')).convert('RGBA')
+                        fragments.append(image_mask_composite)
+            if len(fragments) > 0:
+                self.images+=fragments
+                self.texts*=2
+        elif self.mask is not None:
+            for i in range(len(self.images)):
+            self.images[i] = apply_overlay(self.images[i], None, 0, self.init_masked)

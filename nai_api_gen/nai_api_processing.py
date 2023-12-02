@@ -27,26 +27,30 @@ def post_process_images(p,script,is_post):
     try:            
         script.in_post_process=True
         r = p.nai_processed
-        for i in range(len(r.all_prompts)):
+        plen=len(r.all_prompts)
+        print ("Number of Images: " ,plen)
+        for i in range(plen):
             p.iteration = int( i/p.n_iter)
             p.batch_index = i % p.batch_size
             image = r.images[i]
             _,existing_info = images.read_info_from_image(image)
+            print(not is_post and shared.opts.samples_save and not p.do_not_save_samples, is_post, shared.opts.samples_save,p.do_not_save_samples)
             save_images = not is_post and shared.opts.samples_save and not p.do_not_save_samples                    
             pp = scripts.PostprocessImageArgs(image)
             p.scripts.postprocess_image(p, pp)                    
             if image != pp.image: 
                 if shared.opts.data.get("nai_api_save_original", True):
                     images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info)
-                r.images[i]=pp.image
                 r.images.append(image)
+                r.images[i]=pp.image
                 r.infotexts.append(r.infotexts[i])
                 r.all_prompts.append(r.all_prompts[i])
                 r.all_negative_prompts.append(r.all_negative_prompts[i])
                 r.all_seeds.append(r.all_seeds[i])
                 r.all_subseeds.append(r.all_subseeds[i])
             if save_images:
-                images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info)
+                print ("Save Image: " ,i)                
+                images.save_image(r.images[i], p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info)
         p.scripts.postprocess(p, p.nai_processed) 
     finally:                
         script.in_post_process=False        
@@ -95,13 +99,13 @@ def process_images_patched(p):
         if hasattr(p,"nai_processed") and p.nai_processed is not None:       
             post_process_images(p,script,is_post) 
             raise NAIGenException
-        
     try:
         ori_ad = ad_add_whitelist(script) if script.do_nai_post else None
         p.scripts.process = process_patched.__get__(p.scripts, scripts.ScriptRunner)
         results = modules.processing.process_images_pre_patch_4_nai(p)        
-        if originalprocess is not None: p.scripts.process=originalprocess
-        
+        if originalprocess is not None: 
+            p.scripts.process=originalprocess
+            originalprocess=None
         if getattr(script,'include_nai_init_images_in_results',False):
             results.all_subseeds += script.all_subseeds 
             results.all_seeds += script.all_seeds 
@@ -110,13 +114,11 @@ def process_images_patched(p):
             results.images += script.images
             results.infotexts += script.texts
         return results
-            
     except NAIGenException:
         return p.nai_processed
     finally: 
-        ad_rem_whitelist(ori_ad)                
-        
-        if originalprocess is not None:p.scripts.process=originalprocess
+        ad_rem_whitelist(ori_ad)        
+        if originalprocess is not None: p.scripts.process=originalprocess
         
 def patch_pi():
     global PATCHED
@@ -127,7 +129,7 @@ def patch_pi():
         print ("Warning: process_images_inner already patched")
     else:        
         modules.processing.process_images_pre_patch_4_nai = modules.processing.process_images_inner     
-        #print("Patching Image Processing for NAI Generator Script.")
+        print("Patching Image Processing for NAI Generator Script.")
         modules.processing.process_images_inner = process_images_patched
         
 def unpatch_pi():
@@ -138,7 +140,7 @@ def unpatch_pi():
     if (process_images_patched != modules.processing.process_images_inner):
         print ("ERROR: process_images_inner Not patched!")
     else:            
-        #print("Unpatching Image Processing for NAI Generator Script.")
+        print("Unpatching Image Processing for NAI Generator Script.")
         modules.processing.process_images_inner = modules.processing.process_images_pre_patch_4_nai
 
 def ad_add_whitelist(script):

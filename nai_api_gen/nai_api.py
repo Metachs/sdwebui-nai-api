@@ -42,9 +42,9 @@ def POST(key,parameters, g =False):
     if g: 
         import grequests
         import requests
-        return grequests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters)
+        return grequests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters,timeout=120 )
     import requests
-    return requests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters)
+    return requests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters,timeout=120)
 
 def LOAD(response,parameters):
     if response.status_code == 200:
@@ -55,11 +55,7 @@ def LOAD(response,parameters):
             image = Image.open(BytesIO(image_data))
             return image, 200
     else:
-        if response.status_code==400:
-            print(f'400 Invalid Response, check prompt for invalid characters.')
-        if response.status_code==500:
-            print(f'400 Invalid Response, check prompt for invalid characters.')
-        else: print(f"Failure: {response.status_code}")
+        print(f"NAI Image Load Failure - Error Code: {response.status_code}")
         return None, response.status_code
 
 
@@ -98,7 +94,7 @@ def subscription_status(key):
     if not key:
         return -1,False,0,0        
     import requests    
-    response = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key))
+    response = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key),timeout=30)
     try:
         if response.status_code==200:
             content = response.json()
@@ -172,7 +168,7 @@ def prompt_to_nai(p, parenthesis_only = False):
         return 25
     
     idx = 0
-    while idx < len(p) or state is not None:
+    while idx < len(p) or (state is not None and idx < 1000 + len(p)):
         if idx < len(p): 
             i = idx
             c = p[i]
@@ -322,63 +318,5 @@ def get_set_noise_schedule(sampler,noise_schedule):
     if sampler == "ddim": return ""
     if noise_schedule_selected(sampler, noise_schedule): return noise_schedule
     return noise_schedule_selections[0]
-
-def convert(input):
-    #Chat Shit, broken, works half the time.
-    
-    re_attention = re.compile(r'\{|\[|\}|\]|[^\{\}\[\]]+', re.MULTILINE | re.UNICODE)
-    text = input.replace("(", r"\(").replace(")", r"\)").replace(r'\\{2,}(\(|\))', r"\\$1")
-
-    res = []
-    curly_brackets = []
-    square_brackets = []
-
-    curly_bracket_multiplier = 1.05
-    square_bracket_multiplier = 1 / 1.05
-
-    def multiply_range(start_position, multiplier):
-        for pos in range(start_position, len(res)):
-            res[pos][1] = round(res[pos][1] * multiplier * 10000) / 10000
-
-    for match in re_attention.finditer(text):
-        word = match.group(0)
-
-        if word == "{":
-            curly_brackets.append(len(res))
-        elif word == "[":
-            square_brackets.append(len(res))
-        elif word == "}" and curly_brackets:
-            multiply_range(curly_brackets.pop(), curly_bracket_multiplier)
-        elif word == "]" and square_brackets:
-            multiply_range(square_brackets.pop(), square_bracket_multiplier)
-        else:
-            res.append([word, 1.0])
-
-    for pos in curly_brackets:
-        multiply_range(pos, curly_bracket_multiplier)
-
-    for pos in square_brackets:
-        multiply_range(pos, square_bracket_multiplier)
-
-    if not res:
-        res = [["", 1.0]]
-
-    i = 0
-    while i + 1 < len(res):
-        if res[i][1] == res[i + 1][1]:
-            res[i][0] = res[i][0] + res[i + 1][0]
-            res.pop(i + 1)
-        else:
-            i += 1
-
-    result = ""
-    for item in res:
-        if item[1] == 1.0:
-            result += item[0]
-        else:
-            result += f"({item[0]}:{item[1]})"
-    
-    return result
-    
     
     
