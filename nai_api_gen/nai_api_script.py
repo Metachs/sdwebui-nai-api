@@ -27,6 +27,7 @@ from modules.processing import process_images,apply_overlay,Processed
 from PIL import Image, ImageFilter, ImageOps
 from modules import masking
 import numpy as np
+import cv2
 
 from nai_api_gen.nai_api import NAIGenParams 
 
@@ -341,7 +342,12 @@ class NAIGENScriptBase(scripts.Script):
                 mask = mask.convert('L')
                 print(mask.width, mask.height)
                 if p.inpainting_mask_invert: mask = ImageOps.invert(mask)
-                if p.mask_blur > 0: mask = mask.filter(ImageFilter.GaussianBlur(p.mask_blur))
+                if p.mask_blur > 0:
+                    np_mask = np.array(mask)
+                    kernel_size = 2 * int(2.5 * p.mask_blur + 0.5) + 1
+                    np_mask = cv2.GaussianBlur(np_mask, (kernel_size, kernel_size), p.mask_blur)
+                    mask = Image.fromarray(np_mask)
+
                 if p.inpaint_full_res:
                     overlay_mask = mask
                     crop = masking.expand_crop_region(masking.get_crop_region(np.array(mask), p.inpaint_full_res_padding), p.width, p.height, mask.width, mask.height)
