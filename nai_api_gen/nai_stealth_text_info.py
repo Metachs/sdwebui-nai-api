@@ -1,5 +1,6 @@
 # Modified Unlicensed code nabbed from an abandoned repo 
 # https://github.com/ashen-sensored/sd_webui_stealth_pnginfo
+# Code remains unlicensed 
 
 from modules import script_callbacks, shared, generation_parameters_copypaste
 from modules.script_callbacks import ImageSaveParams
@@ -12,15 +13,55 @@ import warnings
 import gzip
 import json
 
+from nai_api_gen.nai_api import get_set_noise_schedule
+from nai_api_gen import nai_api
+    
+original_read_info_from_image = None
+original_resize_image = None
+original_send_image_and_dimensions = None
+    
+def script_setup():
+    global original_read_info_from_image
+    global original_resize_image
+    global original_send_image_and_dimensions
+    
+    script_callbacks.on_ui_settings(on_ui_settings)
+    script_callbacks.on_before_image_saved(add_stealth_pnginfo)
+    script_callbacks.on_after_component(on_after_component_change_pnginfo_image_mode)    
+    script_callbacks.on_script_unloaded(script_unload)
+    
+    if(original_read_info_from_image is not None): return
+    
+    original_read_info_from_image = images.read_info_from_image
+    images.read_info_from_image = read_info_from_image_stealth
+    original_send_image_and_dimensions = generation_parameters_copypaste.send_image_and_dimensions
+    generation_parameters_copypaste.send_image_and_dimensions = send_rgb_image_and_dimension
+    original_resize_image = images.resize_image
+    images.resize_image = stealth_resize_image
+
+    
+    
+def script_unload():
+    global original_read_info_from_image
+    global original_resize_image
+    global original_send_image_and_dimensions
+    if original_read_info_from_image is not None: images.read_info_from_image = original_read_info_from_image
+    if original_send_image_and_dimensions is not None: generation_parameters_copypaste.send_image_and_dimensions = original_send_image_and_dimensions
+    if original_resize_image is not None: images.resize_image = original_resize_image
+    original_read_info_from_image=None
+    original_resize_image=None
+    original_send_image_and_dimensions=None
+    
+    
+        
+    
 #Fix for not saving PNGInfo on saved images, probably a better way but this was the easiest
-# TODO: See if I can preserve both A1111 and NAI metadata.
+# TODO: See if I can preserve both A1111 and NAI metadata
 
 def add_stealth_pnginfo(params: ImageSaveParams):
     
     nai_api_png_info = shared.opts.data.get("nai_api_png_info", 'NAI Only')
 
-    if nai_api_png_info == 'Disable':
-        return
     if not params.filename.endswith('.png') or params.pnginfo is None:
         return
     if params.pnginfo.get("Software", None) == "NovelAI":
@@ -69,7 +110,6 @@ def process_nai_geninfo(geninfo, items):
     add('uncond_scale')
     add('cfg_rescale')
     
-    from scripts.nai_api import get_set_noise_schedule
     noise_schedule = get_set_noise_schedule(j["sampler"], j.get("noise_schedule", ""))
     if noise_schedule: add("noise_schedule", value = noise_schedule )
     
@@ -78,7 +118,6 @@ def process_nai_geninfo(geninfo, items):
     add('add_original_image')
     add('noise')
     add('strength',"Denoising strength")
-    from scripts import nai_api
     model = items.get('Source',"")
     
     if model ==  "Stable Diffusion 3B3287AF": model = nai_api.NAIv1 
@@ -386,14 +425,4 @@ def on_after_component_change_pnginfo_image_mode(component, **_kwargs):
 def stealth_resize_image(resize_mode, im, width, height, upscaler_name=None):
     if im.mode == 'RGBA': im = im.convert('RGB')
     return original_resize_image(resize_mode, im, width, height, upscaler_name)
-
-
-original_read_info_from_image = images.read_info_from_image
-images.read_info_from_image = read_info_from_image_stealth
-generation_parameters_copypaste.send_image_and_dimensions = send_rgb_image_and_dimension
-original_resize_image = images.resize_image
-images.resize_image = stealth_resize_image
-
-script_callbacks.on_ui_settings(on_ui_settings)
-script_callbacks.on_before_image_saved(add_stealth_pnginfo)
-script_callbacks.on_after_component(on_after_component_change_pnginfo_image_mode)
+    

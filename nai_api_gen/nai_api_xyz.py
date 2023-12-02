@@ -1,48 +1,32 @@
-from modules import scripts, script_callbacks, shared, sd_samplers
+from modules import scripts, script_callbacks, shared
 import gradio as gr
-
 import os
-from PIL import Image 
-import hashlib
-
-import math
-import re
-
-import time
-
-from scripts import nai_api
-
-import modules.processing
-
-import modules 
-
-
-import modules.images as images
-from modules.processing import process_images
-      
         
 def to_bool(v: str):
     try:
         if len(v) == 0: return False
         v = v.lower()
         if 'true' in v: return True
-        if 'false' in v: return False        
+        if 'false' in v: return False
         if 'on' in v: return True
-        if 'off' in v: return False        
+        if 'off' in v: return False
         if 'yes' in v: return True
-        if 'no' in v: return False        
+        if 'no' in v: return False
         w = int(v)
         return bool(w)
     except:
         raise Exception(f"Invalid bool")
 
 PREFIX = "NAI"
-    
-import os
-def xyz_support():
-    for scriptDataTuple in scripts.scripts_data:
-        if os.path.basename(scriptDataTuple.path) == 'xyz_grid.py':
-            xy_grid = scriptDataTuple.module
+
+
+def script_setup():    
+    script_callbacks.on_before_ui(xyz_setup)
+
+def xyz_setup():
+    for script in scripts.scripts_data:
+        if os.path.basename(script.path) == 'xyz_grid.py':
+            xy_grid = script.module
             if hasattr(xy_grid,"_NAI_GRID_OPTIONS"): return
             xy_grid._NAI_GRID_OPTIONS=True
             
@@ -110,9 +94,11 @@ def xyz_support():
                 xy_grid.apply_field( f'{PREFIX}_'+'add_original_image'),
                 choices= lambda: ["On","Off"]
             ))
-try:
-    
-    xyz_support()
-except Exception as e:
-    print(f'Error trying to add XYZ plot options for khr', e)
+
+
+# def xyz_setup():
+    # try:    
+        # xyz_setup()
+    # except Exception as e:
+        # print(f'Error trying to add XYZ plot options for khr', e)
 
