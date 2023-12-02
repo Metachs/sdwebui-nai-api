@@ -348,6 +348,8 @@ class NAIGENScriptBase(scripts.Script):
                     np_mask = cv2.GaussianBlur(np_mask, (kernel_size, kernel_size), p.mask_blur)
                     mask = Image.fromarray(np_mask)
 
+                self.mask_for_overlay = mask
+
                 if p.inpaint_full_res:
                     overlay_mask = mask
                     crop = masking.expand_crop_region(masking.get_crop_region(np.array(mask), p.inpaint_full_res_padding), p.width, p.height, mask.width, mask.height)
@@ -539,11 +541,19 @@ class NAIGENScriptBase(scripts.Script):
                         file.write(Processed(p, []).infotext(p, 0))
                 if self.crop is not None:
                     crop = self.crop
-                    fragments = self.images.copy() if shared.opts.data.get('nai_api_all_images', False) else None
+                    fragments = self.images.copy() if shared.opts.data.get('nai_api_all_images', False) else []
                     for i in range(len(self.images)):
                         image = apply_overlay(self.images[i],  (self.crop[0], self.crop[1], self.crop[2]-self.crop[0], self.crop[3]-self.crop[1]), 0, self.init_masked)
                         self.images[i] = image
-                    if fragments is not None:
+                        if hasattr(self, 'mask_for_overlay') and self.mask_for_overlay and any([shared.opts.save_mask, shared.opts.save_mask_composite, shared.opts.return_mask, shared.opts.return_mask_composite]):
+                            if shared.opts.return_mask:
+                                image_mask = self.mask_for_overlay.convert('RGB')
+                                fragments.append(image_mask)
+
+                            if shared.opts.return_mask_composite:
+                                image_mask_composite = Image.composite(image.convert('RGBA').convert('RGBa'), Image.new('RGBa', image.size), images.resize_image(2, self.mask_for_overlay, image.width, image.height).convert('L')).convert('RGBA')
+                                fragments.append(image_mask_composite)
+                    if len(fragments) > 0:
                         self.images+=fragments
                         self.texts*=2
                 elif self.mask is not None:
