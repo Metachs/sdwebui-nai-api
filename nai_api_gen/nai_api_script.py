@@ -359,13 +359,16 @@ class NAIGENScriptBase(scripts.Script):
                     image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(overlay_mask.convert('L')))
                     init_masked.append(image_masked.convert('RGBA'))
                     
-                self.mask = mask
-                self.init_masked = init_masked
-                self.crop = crop
+            self.mask = mask
+            self.init_masked = init_masked
+            self.crop = crop
             self.init_images = init_images
-        else: self.init_images = None
-               
-    
+        else: 
+            self.init_images = None
+            self.mask = None
+            self.init_masked = None
+            self.crop = None
+
     def nai_image_processsing(self,p, *args, **kwargs):
         self.nai_preprocess(p, *args, **kwargs)
         if not self.use_batch_processing: self.nai_generate_images(p, *args, **kwargs)

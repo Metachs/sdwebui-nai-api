@@ -42,9 +42,9 @@ def POST(key,parameters, g =False):
     if g: 
         import grequests
         import requests
-        return grequests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters)
+        return grequests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters,timeout=120 )
     import requests
-    return requests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters)
+    return requests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters,timeout=120)
 
 def LOAD(response,parameters):
     if response.status_code == 200:
@@ -98,7 +98,7 @@ def subscription_status(key):
     if not key:
         return -1,False,0,0        
     import requests    
-    response = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key))
+    response = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key),timeout=30)
     try:
         if response.status_code==200:
             content = response.json()
