@@ -45,7 +45,7 @@ def post_process_images(p,script,is_post):
             p.scripts.postprocess_image(p, pp)                    
             if image != pp.image: 
                 if shared.opts.data.get("nai_api_save_original", True):
-                    images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info)
+                    images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info.copy())
                 r.images.append(image)
                 r.images[i]=pp.image
                 r.infotexts.append(r.infotexts[i])
@@ -55,7 +55,7 @@ def post_process_images(p,script,is_post):
                 r.all_subseeds.append(r.all_subseeds[i])
             if save_images:
                 DEBUG_LOG ("Save Image: " ,i)                
-                images.save_image(r.images[i], p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info)
+                images.save_image(r.images[i], p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info.copy())
         p.scripts.postprocess(p, p.nai_processed) 
     finally:                
         script.in_post_process=False        
