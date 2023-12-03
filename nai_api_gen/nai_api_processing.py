@@ -38,9 +38,7 @@ def post_process_images(p,script,is_post):
             p.iteration = int( i/p.n_iter)
             p.batch_index = i % p.batch_size
             image = r.images[i]
-            if shared.opts.data.get("nai_bypass_deprecated", False):
-                existing_info = image.info
-            else: existing_info = None
+            existing_info = image.info.copy()
             DEBUG_LOG(not is_post and shared.opts.samples_save and not p.do_not_save_samples, is_post, shared.opts.samples_save,p.do_not_save_samples)
             save_images = not is_post and shared.opts.samples_save and not p.do_not_save_samples                    
             pp = scripts.PostprocessImageArgs(image)
