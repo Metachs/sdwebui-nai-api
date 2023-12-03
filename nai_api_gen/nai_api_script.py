@@ -550,8 +550,9 @@ class NAIGENScriptBase(scripts.Script):
                 self.images[i] = image
                 self.texts[i] = self.infotext(p,i)
                     
-                #TODO: Crop and reconstruct images here instead of after generation.
-                shared.state.assign_current_image(self.images[i])                
+                #TODO: Paste together images after inpainting and set preview.
+                #if not is_post and self.crop is None:
+                #shared.state.assign_current_image(self.images[i])                
                 
                 if save_images: 
                     DEBUG_LOG("Save Image:",ri,i)                
@@ -560,7 +561,7 @@ class NAIGENScriptBase(scripts.Script):
         for i in range(cur_iter*batch_size, cur_iter*batch_size+batch_size):
             if i >= len(self.images):break
             if self.images[i] is None:
-                if iter_count*batch_size == 1 and self.init_images is None:
+                if iter_count*batch_size == 1 or self.init_images is None:
                     self.fail(p,f'Failed to retrieve image - Error Code: {self.texts[i]}')
                 else: self.comment(p,f'Failed to retrieve image {i} - Error Code: {self.texts[i]}')
                 print("Image Failed to Load, Giving Up" ,i)
