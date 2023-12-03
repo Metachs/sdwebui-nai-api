@@ -30,7 +30,7 @@ class NAIGenException(Exception):
     
 def post_process_images(p,script,is_post):
     try:            
-        script.in_post_process=True
+        if not is_post: script.in_post_process=True
         r = p.nai_processed
         plen=min(len(r.all_prompts), len( r.images))
         DEBUG_LOG("Number of Images: " ,plen)
@@ -57,8 +57,8 @@ def post_process_images(p,script,is_post):
                 DEBUG_LOG ("Save Image: " ,i)                
                 images.save_image(r.images[i], p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info.copy())
         p.scripts.postprocess(p, p.nai_processed) 
-    finally:                
-        script.in_post_process=False        
+    finally: 
+        if not is_post: script.in_post_process=False        
 
 
 def process_images_patched(p):
