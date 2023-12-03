@@ -46,13 +46,16 @@ def post_process_images(p,script,is_post):
             if image != pp.image: 
                 if shared.opts.data.get("nai_api_save_original", True):
                     images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info.copy())
-                r.images.append(image)
+                if shared.opts.data.get('nai_api_include_original', False): 
+                # Separating this and the set below probably isn't necessary, but assigning pp.image before appending image resulted in both being pp.image. May have misunderstood something, need to investigate further.
+                    r.images.append(image)
                 r.images[i]=pp.image
-                r.infotexts.append(r.infotexts[i])
-                r.all_prompts.append(r.all_prompts[i])
-                r.all_negative_prompts.append(r.all_negative_prompts[i])
-                r.all_seeds.append(r.all_seeds[i])
-                r.all_subseeds.append(r.all_subseeds[i])
+                if shared.opts.data.get('nai_api_include_original', False): 
+                    r.infotexts.append(r.infotexts[i])
+                    r.all_prompts.append(r.all_prompts[i])
+                    r.all_negative_prompts.append(r.all_negative_prompts[i])
+                    r.all_seeds.append(r.all_seeds[i])
+                    r.all_subseeds.append(r.all_subseeds[i])
             if save_images:
                 DEBUG_LOG ("Save Image: " ,i)                
                 images.save_image(r.images[i], p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info.copy())
