@@ -34,7 +34,7 @@ def post_process_images(p,script,is_post):
             p.iteration = int( i/p.n_iter)
             p.batch_index = i % p.batch_size
             image = r.images[i]
-            if not shared.opts.data.get("nai_bypass_geninfo_transfer", False):
+            if not is_post and not shared.opts.data.get("nai_bypass_geninfo_transfer", False):
                 _,existing_info = nai_stealth_text_info.read_info_from_image_stealth(image)
             else: existing_info = None
             print(not is_post and shared.opts.samples_save and not p.do_not_save_samples, is_post, shared.opts.samples_save,p.do_not_save_samples)
