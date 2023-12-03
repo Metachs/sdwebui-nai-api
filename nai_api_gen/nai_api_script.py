@@ -553,7 +553,7 @@ class NAIGENScriptBase(scripts.Script):
                     
                 #TODO: Paste together images after inpainting and set preview.
                 #if not is_post and self.crop is None:
-                #shared.state.assign_current_image(self.images[i])                
+                shared.state.assign_current_image(image.copy())
                 
                 if save_images: 
                     DEBUG_LOG("Save Image:",ri,i)                
@@ -597,3 +597,5 @@ class NAIGENScriptBase(scripts.Script):
         elif self.mask is not None and overlay:
             for i in range(len(self.images)):
                 self.images[i] = apply_overlay(self.images[i], None, 0, self.init_masked)
+                    
+        
