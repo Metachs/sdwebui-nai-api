@@ -30,6 +30,7 @@ import numpy as np
 import cv2
 
 from nai_api_gen.nai_api import NAIGenParams 
+from nai_api_gen.nai_api_settings import DEBUG_LOG
 
 PREFIX = 'NAI'
 hashdic = {}    
@@ -177,7 +178,7 @@ class NAIGENScriptBase(scripts.Script):
     def subscription_status_message(self):
         key = self.get_api_key()
         status, opus, points, max = nai_api.subscription_status(key)
-        #print(f'{status} {opus} {points} {max}')
+        DEBUG_LOG(f'Subscription Status: {status} {opus} {points} {max}')
         if status == -1: return False,"[API ERROR] Missing API Key, enter in options menu"
         elif status == 401: return False,"Invalid API Key"
         elif status != 200: return False,f"[API ERROR] Error Code: {status}"
@@ -334,11 +335,11 @@ class NAIGENScriptBase(scripts.Script):
         
         mask = None if not isimg2img or inpaint_mode == 2 else (p.image_mask or self.mask)  
         init_masked = None
-        print("nai_preprocess")
+        DEBUG_LOG("nai_preprocess")
         crop = None
         init_images=[]   
         if isimg2img:            
-            print ("init_images: " ,len(p.init_images))            
+            DEBUG_LOG("init_images: " ,len(p.init_images))            
             for i in range(len(p.init_images)):
                 image = images.flatten(p.init_images[i], shared.opts.img2img_background_color)
                 if not p.inpaint_full_res:
@@ -347,7 +348,7 @@ class NAIGENScriptBase(scripts.Script):
                 
             if mask is not None: 
                 mask = mask.convert('L')
-                print(mask.width, mask.height)
+                DEBUG_LOG("Mask",mask.width, mask.height)
                 if p.inpainting_mask_invert: mask = ImageOps.invert(mask)
                 if p.mask_blur > 0:
                     np_mask = np.array(mask)
@@ -370,9 +371,17 @@ class NAIGENScriptBase(scripts.Script):
                 for i in range(len(p.init_images)):
                     image = p.init_images[i]
                     image_masked = Image.new('RGBa', (image.width, image.height))
-                    print(image.width, image.height, p.width, p.height, mask.width, mask.height, overlay_mask.width, overlay_mask.height)
+                    DEBUG_LOG(image.width, image.height, p.width, p.height, mask.width, mask.height, overlay_mask.width, overlay_mask.height)
                     image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(overlay_mask.convert('L')))
                     init_masked.append(image_masked.convert('RGBA'))
+                    
+                # for i in range(len(init_images)):
+                    # image = init_images[i]
+                    # if self.crop is not None:
+                        # image = image.crop(self.crop)
+                        # image = images.resize_image(2, image, p.width, p.height)
+                    # elif image is not None and img_resize_mode < 3:
+                        # image = images.resize_image(img_resize_mode, image, p.width, p.height)
                     
             self.mask = mask
             self.init_masked = init_masked
@@ -404,7 +413,7 @@ class NAIGENScriptBase(scripts.Script):
 
     def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
         if self.disabled or p.nai_processed is not None: return 
-        print("nai_generate_images")
+        DEBUG_LOG("nai_generate_images")
         
         isimg2img=self.isimg2img
         do_local_img2img=self.do_local_img2img
@@ -485,7 +494,7 @@ class NAIGENScriptBase(scripts.Script):
         cur_iter = p.iteration
         iter_count = p.n_iter
         batch_size = p.batch_size
-        print("Loading Images: ",cur_iter, iter_count,batch_size)
+        DEBUG_LOG("Loading Images: ",cur_iter, iter_count,batch_size)
         
         if not self.use_batch_processing:
             if self.do_local_img2img > 0:
@@ -512,20 +521,19 @@ class NAIGENScriptBase(scripts.Script):
                     self.images.append(None)
                     self.hashes.append(None)
                     self.texts.append("")
-                    print("Loading Image",i)
-                    strip = re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters))
-                    print(f'{strip}')                    
+                    DEBUG_LOG("Loading Image",i)
+                    print(f"Requesting Image {i}/{p.n_iter*p.batch_size}: {p.width} x {p.height} - {p.steps} steps.")
+                    if shared.opts.data.get('nai_query_logging', False):                     
+                        print(re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters)))
                     results.append(nai_api.POST(key, parameters, g = query_batch_size > 1))
-                    print("Query Complete",i)
+                    DEBUG_LOG("Query Complete",i)
                     resultsidx.append(i)               
-                
                     
             if query_batch_size > 1: 
                 import grequests    
                 results = grequests.map(results)
-            
 
-            print("Reading Result Images",i)
+            DEBUG_LOG("Reading Result Images",i)
             
             for ri in range(len(results)):
                 result = results[ri]
@@ -542,12 +550,12 @@ class NAIGENScriptBase(scripts.Script):
                     if len(parameters) < 10000: hashdic[parameters] = hash
                     if not os.path.exists(os.path.join(shared.opts.outdir_init_images, f"{hash}.png")):
                         images.save_image(image, path=shared.opts.outdir_init_images, basename=None, extension='png', forced_filename=hash, save_to_dirs=False)
-                print("Read Image:",ri,i)                
+                DEBUG_LOG("Read Image:",ri,i)                
                 self.images[i] = image
                 self.texts[i] = self.infotext(p,i)
                     
                 if save_images: 
-                    print("Save Image:",ri,i)                
+                    DEBUG_LOG("Save Image:",ri,i)                
                     images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix=save_suffix)
                 
         for i in range(cur_iter*batch_size, cur_iter*batch_size+batch_size):

@@ -28,10 +28,11 @@ def script_setup():
     script_callbacks.on_ui_settings(on_ui_settings)
     script_callbacks.on_before_image_saved(add_stealth_pnginfo)
     script_callbacks.on_after_component(on_after_component_change_pnginfo_image_mode)
-    # Temporarily disable unloading/undoing function hijacks
-    #script_callbacks.on_script_unloaded(script_unload)
+    
+    script_callbacks.on_script_unloaded(script_unload)
     
     if(original_read_info_from_image is not None): return
+    
     original_read_info_from_image = images.read_info_from_image
     images.read_info_from_image = read_info_from_image_stealth
     original_send_image_and_dimensions = generation_parameters_copypaste.send_image_and_dimensions
@@ -48,10 +49,7 @@ def script_unload():
     if original_resize_image is not None: images.resize_image = original_resize_image
     original_read_info_from_image=None
     original_resize_image=None
-    original_send_image_and_dimensions=None
-    
-    
-        
+    original_send_image_and_dimensions=None        
     
 #Fix for not saving PNGInfo on saved images, probably a better way but this was the easiest
 # TODO: See if I can preserve both A1111 and NAI metadata
