@@ -100,7 +100,6 @@ class NAIGENScriptBase(scripts.Script):
                 dynamic_thresholding = gr.Checkbox(value=False, label='Decrisper (Dynamic Thresholding)',min_width=64)
                 smea = gr.Radio(label="SMEA",value="Off",choices=["SMEA","DYN","Off"],type="value",show_label=False)            
             with gr.Row(variant="compact",visible = is_img2img):
-                img_resize_mode = gr.Dropdown(label='Resize Mode',  choices=["Resize","Crop","Fill","None (NAI Resize)"], value = "Resize", type="index")
                 extra_noise=gr.Slider(minimum=0.0, maximum=1.0 ,step=0.01, label='Noise', value=0.0)
                 add_original_image = gr.Checkbox(value=True, label='Inpaint: Overlay Image')            
             with gr.Accordion(label="Advanced", open=False):
@@ -155,7 +154,7 @@ class NAIGENScriptBase(scripts.Script):
         for _, field_name in self.infotext_fields:
             self.paste_field_names.append(field_name)
             
-        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local]
+        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,keep_mask_for_local]
 
     def skip_checks(self):
         return shared.opts.data.get('nai_api_skip_checks', False)
@@ -223,6 +222,7 @@ class NAIGENScriptBase(scripts.Script):
         self.failed=True
         self.failure = c
         self.disabled=True
+        shared.state.interrupt()
     
     def limit_costs(self, p, nai_batch = False):
         MAXSIZE = 1048576
@@ -268,7 +268,7 @@ class NAIGENScriptBase(scripts.Script):
         p.width = width
         p.height = height
         
-    def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):        
+    def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,keep_mask_for_local,**kwargs):        
         if not enable: self.disabled=True
         if self.disabled: return 
         
@@ -285,6 +285,7 @@ class NAIGENScriptBase(scripts.Script):
         if not self.isimg2img: do_local_img2img = 0
         self.do_local_img2img=do_local_img2img
 
+        self.resize_mode = getattr(p,"resize_mode",0) 
         self.width = p.width
         self.height= p.height
         self.cfg = p.cfg_scale
@@ -293,11 +294,11 @@ class NAIGENScriptBase(scripts.Script):
         self.mask = getattr(p,"image_mask",None)
         
         if  do_local_img2img== 1 or do_local_img2img == 2:
-            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
+            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,keep_mask_for_local)
         elif not self.use_batch_processing:
             p.disable_extra_networks=True
-            p.batch_size = p.n_iter * p.batch_size
-            p.n_iter = 1
+            # p.batch_size = p.n_iter * p.batch_size
+            # p.n_iter = 1
 
         p.nai_processed=None         
         
@@ -308,8 +309,9 @@ class NAIGENScriptBase(scripts.Script):
         p.steps = self.steps
         p.image_mask = self.mask
         p.denoising_strength = self.strength
+        p.resize_mode = self.resize_mode
         
-    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local):    
+    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,keep_mask_for_local):    
         if nai_resolution_scale> 0:
             p.width = int(p.width * nai_resolution_scale)
         p.height = int(p.height * nai_resolution_scale)
@@ -317,8 +319,12 @@ class NAIGENScriptBase(scripts.Script):
         if nai_steps > 0: p.steps = nai_steps
         if nai_denoise_strength > 0 and has_attr(p,"denoising_strength") : p.denoising_strength = nai_denoise_strength
         if not keep_mask_for_local and do_local_img2img == 2 and has_attr(p,"image_mask"): p.image_mask = None
+        #Use standard resize mode if set to crop/fill resize mode. 
+        if p.resize_mode == 1 or p.resize_mode == 2: 
+            p.resize_mode = 0
+        
 
-    def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
+    def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,keep_mask_for_local,**kwargs):
         if not enable: self.disabled=True
         if self.disabled: return 
         isimg2img=self.isimg2img
@@ -340,11 +346,6 @@ class NAIGENScriptBase(scripts.Script):
         init_images=[]   
         if isimg2img:            
             DEBUG_LOG("init_images: " ,len(p.init_images))            
-            for i in range(len(p.init_images)):
-                image = images.flatten(p.init_images[i], shared.opts.img2img_background_color)
-                if not p.inpaint_full_res:
-                    image = images.resize_image(p.resize_mode if p.resize_mode < 3 else 0, image, p.width, p.height)
-                init_images.append(image)
                 
             if mask is not None: 
                 mask = mask.convert('L')
@@ -375,14 +376,17 @@ class NAIGENScriptBase(scripts.Script):
                     image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(overlay_mask.convert('L')))
                     init_masked.append(image_masked.convert('RGBA'))
                     
-                # for i in range(len(init_images)):
-                    # image = init_images[i]
-                    # if self.crop is not None:
-                        # image = image.crop(self.crop)
-                        # image = images.resize_image(2, image, p.width, p.height)
-                    # elif image is not None and img_resize_mode < 3:
-                        # image = images.resize_image(img_resize_mode, image, p.width, p.height)
-                    
+            for i in range(len(p.init_images)):
+                image = images.flatten(p.init_images[i], shared.opts.img2img_background_color)
+                if crop is not None:
+                    image = image.crop(crop)
+                    image = images.resize_image(2, image, p.width, p.height)
+                else:
+                    image = images.resize_image(p.resize_mode if p.resize_mode < 3 else 0, image, p.width, p.height)
+
+                init_images.append(image)
+                
+                
             self.mask = mask
             self.init_masked = init_masked
             self.crop = crop
@@ -411,7 +415,7 @@ class NAIGENScriptBase(scripts.Script):
         return create_infotext(p, p.all_prompts, p.all_seeds, p.all_subseeds, None, iteration, batch)
 
 
-    def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
+    def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,keep_mask_for_local,**kwargs):
         if self.disabled or p.nai_processed is not None: return 
         DEBUG_LOG("nai_generate_images")
         
@@ -452,7 +456,6 @@ class NAIGENScriptBase(scripts.Script):
         if isimg2img:
             p.extra_generation_params[f'{PREFIX} '+ 'add_original_image'] = add_original_image
             p.extra_generation_params[f'{PREFIX} '+ 'extra_noise'] = extra_noise
-            p.extra_generation_params[f'{PREFIX} '+ 'img_resize_mode'] = img_resize_mode        
             
         extra_noise = max(getattr(p,"extra_noise",0) , extra_noise)
 
@@ -460,12 +463,6 @@ class NAIGENScriptBase(scripts.Script):
             seed =int(p.all_seeds[i])
             
             image= None if ( not isimg2img or do_local_img2img == 1 or self.init_images is None or len(self.init_images) == 0) else  self.init_images[len(self.init_images) % min(p.batch_size, len (self.init_images))]
-            
-            if self.crop is not None:
-                image = image.crop(self.crop)
-                image = images.resize_image(2, image, p.width, p.height)
-            elif image is not None and img_resize_mode < 3:
-                image = images.resize_image(img_resize_mode, image, p.width, p.height)
             
             prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
             
@@ -475,14 +472,14 @@ class NAIGENScriptBase(scripts.Script):
         
         if not self.use_batch_processing:
             if do_local_img2img == 0:
-               p.nai_processed = Processed(p, self.images, p.seed, self.texts[0], subseed=p.all_subseeds[0], infotexts = self.texts) 
+               p.nai_processed = Processed(p, self.images, p.seed, self.texts[0] if len(self.texts) >0 else "", subseed=p.all_subseeds[0], infotexts = self.texts) 
             else:
                 self.all_seeds = p.all_seeds.copy()
                 self.all_subseeds = p.all_subseeds.copy()
                 self.all_prompts = p.all_prompts.copy()
                 self.all_negative_prompts = p.all_negative_prompts.copy()
                 
-                self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
+                self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,keep_mask_for_local)
                     
                 p.init_images = self.images
                 self.include_nai_init_images_in_results=True            
@@ -495,7 +492,6 @@ class NAIGENScriptBase(scripts.Script):
         iter_count = p.n_iter
         batch_size = p.batch_size
         DEBUG_LOG("Loading Images: ",cur_iter, iter_count,batch_size)
-        
         if not self.use_batch_processing:
             if self.do_local_img2img > 0:
                 iter_count = 1
@@ -504,10 +500,10 @@ class NAIGENScriptBase(scripts.Script):
                 batch_size = batch_size*iter_count
                 iter_count = 1
         
-        while len(self.images) < cur_iter*batch_size + batch_size:
+        while len(self.images) < cur_iter*batch_size + batch_size and not shared.state.interrupted:
             results=[]
             resultsidx=[]
-            for i in range( len(self.images) , min(len(self.images) + query_batch_size,  iter_count*batch_size) ):        
+            for i in range( len(self.images) , min(len(self.images) + query_batch_size,  iter_count*batch_size) ):
                 parameters = getparams(i)
                 if dohash and len(parameters) < 10000 and parameters in hashdic:
                     hash = hashdic[parameters]
@@ -522,7 +518,7 @@ class NAIGENScriptBase(scripts.Script):
                     self.hashes.append(None)
                     self.texts.append("")
                     DEBUG_LOG("Loading Image",i)
-                    print(f"Requesting Image {i}/{p.n_iter*p.batch_size}: {p.width} x {p.height} - {p.steps} steps.")
+                    print(f"Requesting Image {i+1}/{p.n_iter*p.batch_size}: {p.width} x {p.height} - {p.steps} steps.")
                     if shared.opts.data.get('nai_query_logging', False):                     
                         print(re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters)))
                     results.append(nai_api.POST(key, parameters, g = query_batch_size > 1))
@@ -554,20 +550,27 @@ class NAIGENScriptBase(scripts.Script):
                 self.images[i] = image
                 self.texts[i] = self.infotext(p,i)
                     
+                #TODO: Crop and reconstruct images here instead of after generation.
+                shared.state.assign_current_image(self.images[i])                
+                
                 if save_images: 
                     DEBUG_LOG("Save Image:",ri,i)                
                     images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix=save_suffix)
                 
         for i in range(cur_iter*batch_size, cur_iter*batch_size+batch_size):
+            if i >= len(self.images):break
             if self.images[i] is None:
-                if iter_count*batch_size == 1:
+                if iter_count*batch_size == 1 and self.init_images is None:
                     self.fail(p,f'Failed to retrieve image - Error Code: {self.texts[i]}')
                 else: self.comment(p,f'Failed to retrieve image {i} - Error Code: {self.texts[i]}')
                 print("Image Failed to Load, Giving Up" ,i)
-                if dohash and batch_size * iter_count == 1:  p.enable_hr = False
-                self.images[i] = Image.new("RGBA",(p.width, p.height), color = "black")
+                if dohash and batch_size * iter_count == 1:  p.enable_hr = False 
+                # Use init image if image loading fails
+                if self.init_images is not None and i < len(self.init_images):
+                    self.images[i]=self.init_images[i]
+                else: self.images[i] = Image.new("RGBA",(p.width, p.height), color = "black")
             else:
-                if i == 0 and save_images and not is_post and dohash:
+                if i == 0 and save_images and not is_post:
                     import modules.paths as paths
                     with open(os.path.join(paths.data_path, "params.txt"), "w", encoding="utf8") as file:
                         file.write(Processed(p, []).infotext(p, 0))
