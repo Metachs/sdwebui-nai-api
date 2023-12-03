@@ -69,10 +69,12 @@ class NAIGENScriptBase(scripts.Script):
     def show(self, is_img2img):
         return False
         
-    def before_process(self, p,*args, **kwargs):
+    def before_process(self,enabled, p,*args, **kwargs):
+        if not enabled: return
         nai_api_processing.patch_pi()        
         
-    def postprocess(self, p,*args, **kwargs):
+    def postprocess(self,enabled, p,*args, **kwargs):
+        if not enabled: return
         nai_api_processing.unpatch_pi()
  
     def ui(self, is_img2img):        
@@ -122,6 +124,7 @@ class NAIGENScriptBase(scripts.Script):
                     convert_prompts = gr.Dropdown(label="Convert Prompts for NAI ",value="Auto",choices=["Auto","Never","Always"])
                     cost_limiter = gr.Checkbox(value=True, label="Force Opus Free Gen Size/Step Limit")
                     nai_post = gr.Checkbox(value=True, label="Use NAI for Inpainting with ADetailer")
+                    disable_smea_in_post = gr.Checkbox(value=True, label="Disable SMEA for Post/Adetailer")
         def on_enable(e,h):
             if e and not self.api_connected: return self.connect_api()
             return e,h
@@ -151,7 +154,7 @@ class NAIGENScriptBase(scripts.Script):
         for _, field_name in self.infotext_fields:
             self.paste_field_names.append(field_name)
             
-        return [enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local]
+        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local]
 
     def skip_checks(self):
         return shared.opts.data.get('nai_api_skip_checks', False)
@@ -264,7 +267,7 @@ class NAIGENScriptBase(scripts.Script):
         p.width = width
         p.height = height
         
-    def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):        
+    def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):        
         if not enable: self.disabled=True
         if self.disabled: return 
         
@@ -289,7 +292,7 @@ class NAIGENScriptBase(scripts.Script):
         self.mask = getattr(p,"image_mask",None)
         
         if  do_local_img2img== 1 or do_local_img2img == 2:
-            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
+            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
         elif not self.use_batch_processing:
             p.disable_extra_networks=True
             p.batch_size = p.n_iter * p.batch_size
@@ -305,7 +308,7 @@ class NAIGENScriptBase(scripts.Script):
         p.image_mask = self.mask
         p.denoising_strength = self.strength
         
-    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local):    
+    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local):    
         if nai_resolution_scale> 0:
             p.width = int(p.width * nai_resolution_scale)
         p.height = int(p.height * nai_resolution_scale)
@@ -314,7 +317,7 @@ class NAIGENScriptBase(scripts.Script):
         if nai_denoise_strength > 0 and has_attr(p,"denoising_strength") : p.denoising_strength = nai_denoise_strength
         if not keep_mask_for_local and do_local_img2img == 2 and has_attr(p,"image_mask"): p.image_mask = None
 
-    def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
+    def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
         if not enable: self.disabled=True
         if self.disabled: return 
         isimg2img=self.isimg2img
@@ -399,7 +402,7 @@ class NAIGENScriptBase(scripts.Script):
         return create_infotext(p, p.all_prompts, p.all_seeds, p.all_subseeds, None, iteration, batch)
 
 
-    def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
+    def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local,**kwargs):
         if self.disabled or p.nai_processed is not None: return 
         print("nai_generate_images")
         
@@ -418,6 +421,9 @@ class NAIGENScriptBase(scripts.Script):
         
         if inpaint_mode == 1 or getattr(p,"inpaint_full_res",False):
             add_original_image = False
+        
+        if disable_smea_in_post and self.in_post_process:            
+            smea = "None" # Disable SMEA during post  
         
         p.extra_generation_params[f'{PREFIX} enable I'] = True
         if sampler.lower() != "auto": p.extra_generation_params[f'{PREFIX} sampler'] = sampler
@@ -467,7 +473,7 @@ class NAIGENScriptBase(scripts.Script):
                 self.all_prompts = p.all_prompts.copy()
                 self.all_negative_prompts = p.all_negative_prompts.copy()
                 
-                self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
+                self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,img_resize_mode,keep_mask_for_local)
                     
                 p.init_images = self.images
                 self.include_nai_init_images_in_results=True            
