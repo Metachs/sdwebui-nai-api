@@ -4,8 +4,6 @@
 
 #### Requires an active Novel AI account with Opus or Anlas to spend (NOT FREE). You will need to generate a NovelAI API Token for your account, and enter it into the NAI API section in sd-webui settings menu. See [https://docs.sillytavern.app/usage/api-connections/novelai] for details on generating an API key.
 
-#### NOTE: Some users are experiencing a long delay (>2 minutes) after images are generated, if this happens, enable the 'Lockup/Stall workaround' option in the settings menu. 
-
 Install using "Extensions > Install from URL" using the repo's URL.
 
 - Supports Text2Image, Image2Image, and Inpainting using NovelAI's API
