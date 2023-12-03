@@ -106,8 +106,8 @@ def subscription_status(key):
     if not key:
         return -1,False,0,0        
     import requests    
-    response = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key),timeout=30)
     try:
+        response = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key),timeout=60)
         if response.status_code==200:
             content = response.json()
             def max_unlimited():
@@ -128,6 +128,9 @@ def subscription_status(key):
             print ("Invalid Key")
         else:
             print (response.status_code)
+    except requests.exceptions.RequestException as e:
+        print("Subscription Status Check Timed Out, Try Again.")
+        return 408,False,0,0
     except requests.exceptions.JSONDecodeError:
         pass
     return response.status_code,False,0,0

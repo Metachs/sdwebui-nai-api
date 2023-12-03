@@ -180,6 +180,7 @@ class NAIGENScriptBase(scripts.Script):
         DEBUG_LOG(f'Subscription Status: {status} {opus} {points} {max}')
         if status == -1: return False,"[API ERROR] Missing API Key, enter in options menu"
         elif status == 401: return False,"Invalid API Key"
+        elif status == 408: return False,"Request Timed out, try again."
         elif status != 200: return False,f"[API ERROR] Error Code: {status}"
         elif not opus and points <=1:
             return True, f'[API ERROR] Insufficient points! {points}'
