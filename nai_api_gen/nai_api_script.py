@@ -61,6 +61,7 @@ class NAIGENScriptBase(scripts.Script):
         self.strength = 0
         # Experimental
         self.use_batch_processing = False
+        self.dohash = False
         self.hashes = []
         self.query_batch_size = 1
         
@@ -469,7 +470,7 @@ class NAIGENScriptBase(scripts.Script):
             
             return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,overlay=add_original_image, mask = self.mask if inpaint_mode!=1 else None)
         
-        self.get_batch_images(p, getparams, save_images = isimg2img and getattr(p,"inpaint_full_res",False) and shared.opts.data.get('nai_api_save_fragments', False), save_suffix ="-nai-init-image" if do_local_img2img > 0 else "" ,dohash = False, query_batch_size=self.query_batch_size, overlay = inpaint_mode == 1 or getattr(p,"inpaint_full_res",False))
+        self.get_batch_images(p, getparams, save_images = isimg2img and getattr(p,"inpaint_full_res",False) and shared.opts.data.get('nai_api_save_fragments', False), save_suffix ="-nai-init-image" if do_local_img2img > 0 else "" ,overlay = inpaint_mode == 1 or getattr(p,"inpaint_full_res",False))
         
         if not self.use_batch_processing:
             if do_local_img2img == 0:
@@ -486,9 +487,8 @@ class NAIGENScriptBase(scripts.Script):
                 self.include_nai_init_images_in_results=True            
             
     
-    def get_batch_images(self, p, getparams, save_images = False , save_suffix = "", dohash = False, query_batch_size = 1, is_post = False, overlay = True):          
+    def get_batch_images(self, p, getparams, save_images = False , save_suffix = "", overlay = True):          
         key = get_api_key()
-               
         cur_iter = p.iteration
         iter_count = p.n_iter
         batch_size = p.batch_size
@@ -504,9 +504,9 @@ class NAIGENScriptBase(scripts.Script):
         while len(self.images) < cur_iter*batch_size + batch_size and not shared.state.interrupted:
             results=[]
             resultsidx=[]
-            for i in range( len(self.images) , min(len(self.images) + query_batch_size,  iter_count*batch_size) ):
+            for i in range( len(self.images) , min(len(self.images) + self.query_batch_size, len(self.images) + batch_size,   iter_count*batch_size) ):
                 parameters = getparams(i)
-                if dohash and len(parameters) < 10000 and parameters in hashdic:
+                if self.dohash and len(parameters) < 10000 and parameters in hashdic:
                     hash = hashdic[parameters]
                     imgp = os.path.join(shared.opts.outdir_init_images, f"{hash}.png")
                     if os.path.exists(imgp):
@@ -522,11 +522,11 @@ class NAIGENScriptBase(scripts.Script):
                     print(f"Requesting Image {i+1}/{p.n_iter*p.batch_size}: {p.width} x {p.height} - {p.steps} steps.")
                     if shared.opts.data.get('nai_query_logging', False):                     
                         print(re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters)))
-                    results.append(nai_api.POST(key, parameters, g = query_batch_size > 1))
+                    results.append(nai_api.POST(key, parameters, g = self.query_batch_size > 1))
                     DEBUG_LOG("Query Complete",i)
                     resultsidx.append(i)               
                     
-            if query_batch_size > 1: 
+            if self.query_batch_size > 1: 
                 import grequests    
                 results = grequests.map(results)
 
@@ -536,11 +536,13 @@ class NAIGENScriptBase(scripts.Script):
                 result = results[ri]
                 i = resultsidx[ri]
                 image,code =  nai_api.LOAD(result, parameters)
+                if code < 0:
+                    raise image
                 if image is None: 
                     print("Reading Result Images Failed:",ri,i,code)                    
                     self.texts[i] = code
                     continue
-                if dohash:
+                if self.dohash:
                     hash = hashlib.md5(image.tobytes()).hexdigest()
                     self.hashes[i] = hash
                     if not getattr(p, "use_txt_init_img",False): p.extra_generation_params["txt_init_img_hash"] = hash
@@ -552,7 +554,7 @@ class NAIGENScriptBase(scripts.Script):
                 self.texts[i] = self.infotext(p,i)
                     
                 #TODO: Paste together images after inpainting and set preview.
-                #if not is_post and self.crop is None:
+                #if not self.in_post_process and self.crop is None:
                 shared.state.assign_current_image(image.copy())
                 
                 if save_images: 
@@ -562,17 +564,18 @@ class NAIGENScriptBase(scripts.Script):
         for i in range(cur_iter*batch_size, cur_iter*batch_size+batch_size):
             if i >= len(self.images):break
             if self.images[i] is None:
-                if iter_count*batch_size == 1 or self.init_images is None:
-                    self.fail(p,f'Failed to retrieve image - Error Code: {self.texts[i]}')
-                else: self.comment(p,f'Failed to retrieve image {i} - Error Code: {self.texts[i]}')
+                # if iter_count*batch_size == 1 or self.init_images is None:
+                    # self.fail(p,f'Failed to retrieve image - Error Code: {self.texts[i]}')
+                # else: 
+                self.comment(p,f'Failed to retrieve image {i} - Error Code: {self.texts[i]}')
                 print("Image Failed to Load, Giving Up" ,i)
-                if dohash and batch_size * iter_count == 1:  p.enable_hr = False 
+                if self.dohash and batch_size * iter_count == 1:  p.enable_hr = False 
                 # Use init image if image loading fails
                 if self.init_images is not None and i < len(self.init_images):
                     self.images[i]=self.init_images[i]
                 else: self.images[i] = Image.new("RGBA",(p.width, p.height), color = "black")
             else:
-                if i == 0 and save_images and not is_post:
+                if i == 0 and save_images and not self.in_post_process:
                     import modules.paths as paths
                     with open(os.path.join(paths.data_path, "params.txt"), "w", encoding="utf8") as file:
                         file.write(Processed(p, []).infotext(p, 0))
