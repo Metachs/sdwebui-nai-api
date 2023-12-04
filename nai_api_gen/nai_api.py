@@ -58,7 +58,8 @@ def LOAD(response,parameters):
             print(f"NAI Image Load Failure - Request Timeout")
             return None, 408
         else: print(f"NAI Image Load Failure - {response}")
-        raise response
+        print(response)
+        return None, -1
         
     if response.status_code == 200:
         with ZipFile(BytesIO(response.content)) as zip_file:
