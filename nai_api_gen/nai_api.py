@@ -45,21 +45,16 @@ def POST(key,parameters, g =False):
         return grequests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters,timeout= 120)
     import requests
     try:
-        return requests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters,timeout= 120)  
+        return requests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters,timeout= 120)
     except requests.exceptions.RequestException as e:
         return e
 
-
-
 def LOAD(response,parameters):
     import requests
-    if isinstance(response,requests.exceptions.RequestException):
+    if response is None or not hasattr(response,"status_code") or isinstance(response,Exception):
         if isinstance(response,requests.exceptions.Timeout):
-            print(f"NAI Image Load Failure - Request Timeout")
             return None, 408
-        else: print(f"NAI Image Load Failure - {response}")
-        print(response)
-        return None, -1
+        return response, -1
         
     if response.status_code == 200:
         with ZipFile(BytesIO(response.content)) as zip_file:
@@ -71,7 +66,6 @@ def LOAD(response,parameters):
     else:
         print(f"NAI Image Load Failure - Error Code: {response.status_code}")
         return None, response.status_code
-
 
 def tryfloat(value, default = None):
     try:

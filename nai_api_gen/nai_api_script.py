@@ -341,7 +341,7 @@ class NAIGENScriptBase(scripts.Script):
             p.nai_processed = Processed(p, self.images, p.seed, self.texts[0], subseed=p.all_subseeds[0], infotexts = self.texts) 
             return
         
-        mask = None if not isimg2img or inpaint_mode == 2 else (p.image_mask or self.mask)  
+        mask = None if not isimg2img or inpaint_mode == 2 else self.mask
         init_masked = None
         DEBUG_LOG("nai_preprocess")
         crop = None
@@ -504,7 +504,8 @@ class NAIGENScriptBase(scripts.Script):
         while len(self.images) < cur_iter*batch_size + batch_size and not shared.state.interrupted:
             results=[]
             resultsidx=[]
-            for i in range( len(self.images) , min(len(self.images) + self.query_batch_size, len(self.images) + batch_size,   iter_count*batch_size) ):
+            query_batch_size = min(self.query_batch_size,p.batch_size)
+            for i in range( len(self.images) , min(len(self.images) + query_batch_size,   iter_count*batch_size) ):
                 parameters = getparams(i)
                 if self.dohash and len(parameters) < 10000 and parameters in hashdic:
                     hash = hashdic[parameters]
@@ -522,11 +523,11 @@ class NAIGENScriptBase(scripts.Script):
                     print(f"Requesting Image {i+1}/{p.n_iter*p.batch_size}: {p.width} x {p.height} - {p.steps} steps.")
                     if shared.opts.data.get('nai_query_logging', False):                     
                         print(re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters)))
-                    results.append(nai_api.POST(key, parameters, g = self.query_batch_size > 1))
+                    results.append(nai_api.POST(key, parameters, g = query_batch_size > 1))
                     DEBUG_LOG("Query Complete",i)
                     resultsidx.append(i)               
                     
-            if self.query_batch_size > 1: 
+            if query_batch_size > 1: 
                 import grequests    
                 results = grequests.map(results)
 
@@ -536,16 +537,19 @@ class NAIGENScriptBase(scripts.Script):
                 result = results[ri]
                 i = resultsidx[ri]
                 image,code =  nai_api.LOAD(result, parameters)
-                if code < 0:
-                    raise image
-                if image is None: 
-                    print("Reading Result Images Failed:",ri,i,code)                    
-                    self.texts[i] = code
+                
+                
+                if code != 200 or image is None: 
+                    if code < 0: self.comment(p,f'ERROR: Request {i+1}/{p.n_iter*p.batch_size} Failed - Unhandled Exception: {image}')
+                    elif code == 408: self.comment(p,f'ERROR: Request {i+1}/{p.n_iter*p.batch_size} Failed - Request Timed Out')
+                    elif code == 400: self.comment(p,f'ERROR: Request {i+1}/{p.n_iter*p.batch_size} Failed - Error Code:{code} Invalid Request')
+                    elif code == 500: self.comment(p,f'ERROR: Request {i+1}/{p.n_iter*p.batch_size} Failed - Error Code:{code} Server Error')
+                    else: self.comment(p,f'ERROR: Request {i+1}/{p.n_iter*p.batch_size} Failed - Error Code:{code}')
                     continue
                 if self.dohash:
                     hash = hashlib.md5(image.tobytes()).hexdigest()
                     self.hashes[i] = hash
-                    if not getattr(p, "use_txt_init_img",False): p.extra_generation_params["txt_init_img_hash"] = hash
+                    if getattr(p, "use_txt_init_img",False): p.extra_generation_params["txt_init_img_hash"] = hash
                     if len(parameters) < 10000: hashdic[parameters] = hash
                     if not os.path.exists(os.path.join(shared.opts.outdir_init_images, f"{hash}.png")):
                         images.save_image(image, path=shared.opts.outdir_init_images, basename=None, extension='png', forced_filename=hash, save_to_dirs=False)
@@ -564,11 +568,6 @@ class NAIGENScriptBase(scripts.Script):
         for i in range(cur_iter*batch_size, cur_iter*batch_size+batch_size):
             if i >= len(self.images):break
             if self.images[i] is None:
-                # if iter_count*batch_size == 1 or self.init_images is None:
-                    # self.fail(p,f'Failed to retrieve image - Error Code: {self.texts[i]}')
-                # else: 
-                self.comment(p,f'Failed to retrieve image {i} - Error Code: {self.texts[i]}')
-                print("Image Failed to Load, Giving Up" ,i)
                 if self.dohash and batch_size * iter_count == 1:  p.enable_hr = False 
                 # Use init image if image loading fails
                 if self.init_images is not None and i < len(self.init_images):
