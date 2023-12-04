@@ -523,7 +523,7 @@ class NAIGENScriptBase(scripts.Script):
                     print(f"Requesting Image {i+1}/{p.n_iter*p.batch_size}: {p.width} x {p.height} - {p.steps} steps.")
                     if shared.opts.data.get('nai_query_logging', False):                     
                         print(re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,parameters)))
-                    results.append(nai_api.POST(key, parameters, g = query_batch_size > 1))
+                    results.append(nai_api.POST(key, parameters, g = query_batch_size > 1, timeout = shared.opts.data.get('nai_api_timeout', 120), attempts =  shared.opts.data.get('nai_api_retry', 2)))
                     DEBUG_LOG("Query Complete",i)
                     resultsidx.append(i)               
                     

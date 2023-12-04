@@ -36,17 +36,26 @@ def get_headers(key):
         'sec-fetch-mode': "cors",
         'sec-fetch-site': "same-site"        
     }
-def POST(key,parameters, g =False):          
-    headers = get_headers(key)
-    parameters = parameters.encode()
+
+TERMINAL_ERRORS = [400,401,403,404]
+
+def POST(key,parameters, g =False, attempts = 0, timeout = 120):          
     if g: 
         import grequests
         import requests
-        return grequests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters,timeout= 120)
+        return grequests.post('https://api.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
     import requests
     try:
-        return requests.post('https://api.novelai.net/ai/generate-image',headers=headers, data=parameters,timeout= 120)
-    except requests.exceptions.RequestException as e:
+        r = requests.post('https://api.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
+        if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
+            print(f"Request failed with error code: {r.status_code}, Retrying")
+            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout)
+        return r
+    except requests.exceptions.Timeout as e:
+        if attempts > 0: return POST(key, parameters, attempts = attempts - 1 , timeout=timeout)
+        print(f"Request Timed Out after {timeout} seconds, Retrying")
+        return e
+    except Exception as e:
         return e
 
 def LOAD(response,parameters):
