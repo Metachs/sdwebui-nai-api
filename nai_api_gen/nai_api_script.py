@@ -406,7 +406,7 @@ class NAIGENScriptBase(scripts.Script):
     def convert_to_nai(self, prompt, neg,convert_prompts="Always"):
         if convert_prompts != "Never":
             if convert_prompts == "Always" or nai_api.prompt_has_weight(prompt): prompt = nai_api.prompt_to_nai(prompt)
-            if convert_prompts == "Always" or nai_api.prompt_has_weight(prompt): neg = nai_api.prompt_to_nai(neg)
+            if convert_prompts == "Always" or nai_api.prompt_has_weight(neg): neg = nai_api.prompt_to_nai(neg)
             prompt=prompt.replace('\\(','(').replace('\\)',')')
             neg=neg.replace('\\(','(').replace('\\)',')')
         return prompt, neg
