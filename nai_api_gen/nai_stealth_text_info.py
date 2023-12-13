@@ -78,14 +78,15 @@ def process_nai_geninfo(geninfo, items):
         
         from modules import sd_samplers
         
-        sampler = sd_samplers.samplers_map.get(j["sampler"], None)
+        sampler = sd_samplers.samplers_map.get(j["sampler"].replace('ancestral','a'), None)
+        
         if sampler is None: sampler = 'DDIM' if 'ddim' in j["sampler"].lower() else 'Euler a'        
         geninfo = f'{items["Description"]}\nNegative prompt: {j["uc"]}\nSteps: {j["steps"]}, Sampler: {sampler}, CFG scale: {j["scale"]}, Seed: {j["seed"]}, Size: {j["width"]}x{j["height"]}'
     except Exception as e:
         print (e)
         return geninfo,items
     PREFIX = "NAI "    
-    def add(s, quote =False, name = None,value = None ):
+    def add(s="", quote =False, name = None,value = None ):
         nonlocal geninfo
         v = value or j.get(s,None)
         if v: 
@@ -105,12 +106,18 @@ def process_nai_geninfo(geninfo, items):
     add('enable',value = True)
     add('uncond_scale')
     add('cfg_rescale')
+    add('sampler',value="Auto")
     
     noise_schedule = get_set_noise_schedule(j["sampler"], j.get("noise_schedule", ""))
     if noise_schedule: add("noise_schedule", value = noise_schedule )
     
     add('dynamic_thresholding')
-    add('extra_noise_seed')
+    ens =add('extra_noise_seed')
+    
+    if ens and int(ens) != int(j["seed"]):
+        add(name = 'Variation seed', value = ens)
+        add(name = 'Variation seed strength', value = 1)        
+
     add('add_original_image')
     add('noise')
     add('strength',"Denoising strength")
@@ -122,16 +129,9 @@ def process_nai_geninfo(geninfo, items):
     elif model ==  "Stable Diffusion F1022D28": model = nai_api.NAIv2
     else: model = nai_api.NAIv3
         
-    add('model',value = model)
+    add('model',value = model)    
     
-    s = add('sm')
-    sd = add('sm_dyn')
-    
-    def is_true(v):
-        if type(s) == str: return s.lower() == "true" 
-        return v
-        
-    add('smea',quote=True, value = "DYN" if is_true(sd) else "SMEA" if is_true(s) else "Off")
+    add('smea',quote=True, value = "DYN" if str(j.get('sm_dyn','false')).lower() =='true' else "SMEA" if str(j.get('sm','false')).lower()=='true' else "Off")
     return geninfo, items
 
 
@@ -212,12 +212,24 @@ def add_data(params, mode='alpha', compressed=False):
 
 
 def read_info_from_image_stealth(image):
-    geninfo, items = original_read_info_from_image(image)
+    try:    
+        if image.info is not None and 'parameters' in image.info and image.info.get("Software", None) == "NovelAI":
+            image.info.pop("Software")
+            return original_read_info_from_image(image)
+        geninfo, items = original_read_info_from_image(image)
+    except Exception as e:
+        print (e)
+        raise
+
     # possible_sigs = {'stealth_pnginfo', 'stealth_pngcomp', 'stealth_rgbinfo', 'stealth_rgbcomp'}
 
     # respecting original pnginfo
     if geninfo is not None:
-        return process_nai_geninfo(geninfo, items)
+        try:
+            return process_nai_geninfo(geninfo, items)
+        except Exception as e:
+            print (e)
+            return geninfo, items
 
     # trying to read stealth pnginfo
     width, height = image.size

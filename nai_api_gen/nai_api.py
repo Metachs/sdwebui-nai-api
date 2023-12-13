@@ -18,7 +18,7 @@ NAIv3 = "nai-diffusion-3"
 
 nai_models = [NAIv3,NAIv2,NAIv1,NAIv1c,NAIv1f]
 
-NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim_v3","k_dpmpp_sde"]
+NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde"]
 noise_schedules = ["exponential","polyexponential","karras","native"]
 
 noise_schedule_selections = ["recommended","exponential","polyexponential","karras","native"]
@@ -39,20 +39,20 @@ def get_headers(key):
 
 TERMINAL_ERRORS = [400,401,403,404]
 
-def POST(key,parameters, g =False, attempts = 0, timeout = 120):          
-    if g: 
-        import grequests
-        import requests
-        return grequests.post('https://api.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
+def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0):          
     import requests
     try:
         r = requests.post('https://api.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
+            if r.status_code == 429 and wait_on_429 > 0:
+                time.sleep(5)
+                wait_on_429 -= 5
+                attempts += 1
             print(f"Request failed with error code: {r.status_code}, Retrying")
-            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout)
+            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429)
         return r
     except requests.exceptions.Timeout as e:
-        if attempts > 0: return POST(key, parameters, attempts = attempts - 1 , timeout=timeout)
+        if attempts > 0: return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429)
         print(f"Request Timed Out after {timeout} seconds, Retrying")
         return e
     except Exception as e:
@@ -243,13 +243,17 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     if prompt == "": prompt = " "    
     if model not in nai_models: model = NAIv3
     
+    if "ddim" in sampler.lower():
+        sampler = "ddim_v3" if model == NAIv3 else "ddim"
+    elif sampler.lower() not in NAI_SAMPLERS: sampler = "k_euler"
+    
     if "ddim" in sampler.lower() or model != NAIv3: 
         noise_schedule=""
     else:
-        if noise_schedule.lower() not in ["exponential","polyexponential","karras","native"]: 
+        if noise_schedule.lower() not in noise_schedules: 
             if sampler != "k_dpmpp_2m": noise_schedule = "native" 
             else:  noise_schedule = "exponential"
-        if "_a" in sampler and noise_schedule == "karras": noise_schedule = "native"
+        if "_ancestral" in sampler and noise_schedule == "karras": noise_schedule = "native"
         noise_schedule = f',"noise_schedule":"{noise_schedule}"'
     
     cfg_rescale = f',"cfg_rescale":{cfg_rescale}' if model == NAIv3 else ""
@@ -257,7 +261,6 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         
     if qualityToggle:
         if model == NAIv3:
-            #tags = 'best quality\s*,\s.*amazing\s.*quality\s.*,\s.*very aesthetic\s.*,\s.*absurdres'
             tags = 'best quality, amazing quality, very aesthetic, absurdres'
             if tags not in prompt: prompt = f'{prompt}, {tags}'
         elif model == NAIv2:
@@ -285,7 +288,6 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         if tags not in neg: neg = f'{tags}, {neg}'
     
     if isinstance(image, Image.Image):            
-        #image=image.convert(mode="RGBA")
         image_byte_array = BytesIO()
         image.save(image_byte_array, format='PNG')
         image = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
@@ -301,7 +303,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             mask.save(image_byte_array, format="PNG")
             mask = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
         if mask is not None:
-            model += "-inpainting"
+            if model != NAIv2:
+                model += "-inpainting"
             mask = f',"mask":"{mask}"'
             
             action="infill"
