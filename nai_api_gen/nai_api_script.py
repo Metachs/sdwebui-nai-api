@@ -132,7 +132,7 @@ class NAIGENScriptBase(scripts.Script):
                     cost_limiter = gr.Checkbox(value=True, label="Force Opus Free Gen Size/Step Limit")
                     nai_post = gr.Checkbox(value=True, label="Use NAI for Inpainting with ADetailer")
                     disable_smea_in_post = gr.Checkbox(value=True, label="Disable SMEA for Post/Adetailer")
-                    legacy_v3_extend = gr.Checkbox(value=True, label="Legacy v3 (Disable Token Fix)")
+                    legacy_v3_extend = gr.Checkbox(value=False, label="Legacy v3 (Disable Token Fix)")
         def on_enable(e,h):
             if e and not self.api_connected: return self.connect_api()
             return e,h

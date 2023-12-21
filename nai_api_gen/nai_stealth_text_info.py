@@ -116,7 +116,8 @@ def process_nai_geninfo(items):
         add(name = 'Variation seed', value = ens)
         add(name = 'Variation seed strength', value = 1)        
 
-    add('legacy_v3_extend')
+    leg = add('legacy_v3_extend')
+    if leg is None: add('legacy_v3_extend',value="true")
     add('add_original_image')
     add('noise')
     add('strength',"Denoising strength")
