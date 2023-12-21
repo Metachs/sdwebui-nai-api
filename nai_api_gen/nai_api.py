@@ -226,7 +226,7 @@ def prompt_to_nai(p, parenthesis_only = False):
     return out
     
     
-def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False):
+def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False):
     def clean(p):
         if type(p) != str: p=f'{p}'
         #TODO: Look for a better way to do this        
@@ -325,8 +325,9 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     sm = "true" if sm else "false"
     sm_dyn = "true" if sm_dyn else "false"
     qualityToggle = "true" if qualityToggle else "false"
+    legacy_v3_extend = "true" if legacy_v3_extend else "false"
     
-    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":1{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":"{qualityToggle}","sm":"{sm}","sm_dyn":"{sm_dyn}","dynamic_thresholding":"{dynamic_thresholding}","controlnet_strength":1,"legacy":"false","add_original_image":"{overlay}"{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
+    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":1{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":"{qualityToggle}","sm":"{sm}","sm_dyn":"{sm_dyn}","dynamic_thresholding":"{dynamic_thresholding}","controlnet_strength":1,"legacy":"false","legacy_v3_extend":"{legacy_v3_extend}","add_original_image":"{overlay}"{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
 
 def noise_schedule_selected(sampler,noise_schedule):
     noise_schedule=noise_schedule.lower()

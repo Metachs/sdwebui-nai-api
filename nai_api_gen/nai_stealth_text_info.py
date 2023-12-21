@@ -69,9 +69,7 @@ def add_stealth_pnginfo(params: ImageSaveParams):
     add_data(params, 'alpha', True)
 
 
-def process_nai_geninfo(geninfo, items):
-    if items is None or items.get("Software", None) != "NovelAI":
-        return geninfo,items
+def process_nai_geninfo(items):
     try:
         import json
         j = json.loads(items["Comment"])
@@ -118,6 +116,7 @@ def process_nai_geninfo(geninfo, items):
         add(name = 'Variation seed', value = ens)
         add(name = 'Variation seed strength', value = 1)        
 
+    add('legacy_v3_extend')
     add('add_original_image')
     add('noise')
     add('strength',"Denoising strength")
@@ -212,26 +211,30 @@ def add_data(params, mode='alpha', compressed=False):
 
 
 def read_info_from_image_stealth(image):
+    
+    # NAI Metadata
     try:    
-        if image.info is not None and 'parameters' in image.info and image.info.get("Software", None) == "NovelAI":
-            image.info.pop("Software")
-            return original_read_info_from_image(image)
-        geninfo, items = original_read_info_from_image(image)
+        if image.info is not None and image.info.get("Software", None) == "NovelAI":
+            if 'parameters' in image.info:
+                # Image has both A1111 and NAI metadata, remove NAI Software entry so A1111 reads it's own metadata.
+                image.info.pop("Software")
+                return original_read_info_from_image(image)
+            
+            return process_nai_geninfo(image.info)
+            
+        geninfo, items = original_read_info_from_image(image)        
+        if geninfo is not None: return geninfo, items        
+    except Exception as e:
+        print(e)
+
+    # Original Metadata
+    try:
+        geninfo, items = original_read_info_from_image(image)        
+        if geninfo is not None: return geninfo, items
     except Exception as e:
         print (e)
-        raise
 
-    # possible_sigs = {'stealth_pnginfo', 'stealth_pngcomp', 'stealth_rgbinfo', 'stealth_rgbcomp'}
-
-    # respecting original pnginfo
-    if geninfo is not None:
-        try:
-            return process_nai_geninfo(geninfo, items)
-        except Exception as e:
-            print (e)
-            return geninfo, items
-
-    # trying to read stealth pnginfo
+    # Stealth PNG Info
     width, height = image.size
     pixels = image.load()
 
@@ -337,8 +340,8 @@ def read_info_from_image_stealth(image):
             try:
                 import json
                 items = json.loads(decoded_data)
-                return process_nai_geninfo(geninfo, items)
-                
+                if items is not None and items.get("Software", None) == "NovelAI": 
+                    return process_nai_geninfo(items)                
             except Exception as e:
                 print (e)
         except Exception as e:
