@@ -186,7 +186,7 @@ class NAIGENScriptBase(scripts.Script):
         key = self.get_api_key()
         status, opus, points, max = nai_api.subscription_status(key)
         DEBUG_LOG(f'Subscription Status: {status} {opus} {points} {max}')
-        if status == -1: return False,"[API ERROR] Missing API Key, enter in options menu"
+        if status == -1: return False,"[ERROR] Missing API Key, enter in Settings > NAI API Generator"
         elif status == 401: return False,"Invalid API Key"
         elif status == 408: return False,"Request Timed out, try again."
         elif status != 200: return False,f"[API ERROR] Error Code: {status}"
