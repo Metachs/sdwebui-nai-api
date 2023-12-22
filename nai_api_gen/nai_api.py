@@ -286,7 +286,16 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         else:
             tags = 'lowres, text, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
         if tags not in neg: neg = f'{tags}, {neg}'
-    
+        
+    if ucPreset == 2:
+        if model == NAIv3:
+            tags = 'nsfw, lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], bad anatomy, bad hands, @_@, mismatched pupils, heart-shaped pupils, glowing eyes'
+        elif model == NAIv2:
+            tags = 'lowres, bad, text, error, missing, extra, fewer, cropped, jpeg artifacts, worst quality, bad quality, watermark, displeasing, unfinished, chromatic aberration, scan, scan artifacts'
+        else:
+            tags = 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+        if tags not in neg: neg = f'{tags}, {neg}'
+            
     if isinstance(image, Image.Image):            
         image_byte_array = BytesIO()
         image.save(image_byte_array, format='PNG')
@@ -327,7 +336,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     qualityToggle = "true" if qualityToggle else "false"
     legacy_v3_extend = "true" if legacy_v3_extend else "false"
     
-    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":1{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":"{qualityToggle}","sm":"{sm}","sm_dyn":"{sm_dyn}","dynamic_thresholding":"{dynamic_thresholding}","controlnet_strength":1,"legacy":"false","legacy_v3_extend":"{legacy_v3_extend}","add_original_image":"{overlay}"{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
+    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":1{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":"{qualityToggle}","sm":"{sm}","sm_dyn":"{sm_dyn}","dynamic_thresholding":"{dynamic_thresholding}","controlnet_strength":1,"legacy":"false","legacy_v3_extend":"{legacy_v3_extend}","add_original_image":"{overlay}"{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
 
 def noise_schedule_selected(sampler,noise_schedule):
     noise_schedule=noise_schedule.lower()
