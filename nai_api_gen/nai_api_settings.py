@@ -26,6 +26,8 @@ def on_ui_settings():
     
     addopt('nai_api_default_sampler', shared.OptionInfo('k_euler', "Fallback Sampler: Used when the NAI sampler is set to Auto and the primary Sampling method doesn't match any sampler available in NAI .",gr.Radio, {"choices": nai_api.NAI_SAMPLERS }, section=section))
     
+    addopt('nai_metadata_only', shared.OptionInfo(False, "Save only NAI metadata instead of full local metadata. Local metadata can be useful for extensions, but contains irrelevant info.",gr.Checkbox, section=section))
+    
     addopt('nai_api_include_original', shared.OptionInfo(True, "Include Original NAI images before Post-Processing in results.",gr.Checkbox, section=section))
     addopt('nai_api_save_original', shared.OptionInfo(False, "Save Original NAI images before Post-Processing.",gr.Checkbox, section=section))
     

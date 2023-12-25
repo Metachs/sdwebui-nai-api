@@ -41,10 +41,11 @@ def post_process_images(p,script,is_post):
             existing_info = image.info.copy()
             DEBUG_LOG(not is_post and shared.opts.samples_save and not p.do_not_save_samples, is_post, shared.opts.samples_save,p.do_not_save_samples)
             save_images = not is_post and shared.opts.samples_save and not p.do_not_save_samples
-            if shared.opts.data.get("nai_api_save_original", True):
-                images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info.copy())
+            nai_meta = shared.opts.data.get('nai_metadata_only', False)
             pp = scripts.PostprocessImageArgs(image)
-            p.scripts.postprocess_image(p, pp)                    
+            p.scripts.postprocess_image(p, pp)
+            if shared.opts.data.get("nai_api_save_original", True):
+                images.save_image(image, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info= "NovelAI", p=p,existing_info=existing_info.copy(), pnginfo_section_name= 'Software')
             if image != pp.image: 
                 if shared.opts.data.get('nai_api_include_original', False): 
                 # Separating this and the set below probably isn't necessary, but assigning pp.image before appending image resulted in both being pp.image. May have misunderstood something, need to investigate further.
@@ -56,12 +57,13 @@ def post_process_images(p,script,is_post):
                     r.all_negative_prompts.append(r.all_negative_prompts[i])
                     r.all_seeds.append(r.all_seeds[i])
                     r.all_subseeds.append(r.all_subseeds[i])
+                nai_meta=False
             if save_images:
-                DEBUG_LOG ("Save Image: " ,i)                
-                images.save_image(r.images[i], p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info=r.infotexts[i], p=p,existing_info=existing_info.copy())
+                DEBUG_LOG ("Save Image: " ,i)
+                images.save_image(r.images[i], p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info= "NovelAI" if nai_meta else r.infotexts[i], p=p,existing_info=existing_info.copy(), pnginfo_section_name= 'Software' if nai_meta else 'parameters')
         p.scripts.postprocess(p, p.nai_processed) 
     finally: 
-        if not is_post: script.in_post_process=False        
+        if not is_post: script.in_post_process=False
 
 
 def process_images_patched(p):
