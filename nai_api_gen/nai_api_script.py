@@ -426,8 +426,8 @@ class NAIGENScriptBase(scripts.Script):
         return prompt, neg
         
     def infotext(self,p,i):
-        iteration = int(i / (p.n_iter*p.batch_size))
-        batch = i % p.batch_size            
+        iteration = int(i / p.batch_size)
+        batch = i % p.batch_size
         return create_infotext(p, p.all_prompts, p.all_seeds, p.all_subseeds, None, iteration, batch)
 
 
