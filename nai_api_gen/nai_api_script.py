@@ -70,11 +70,11 @@ class NAIGENScriptBase(scripts.Script):
     def show(self, is_img2img):
         return False
         
-    def before_process(self,enabled, p,*args, **kwargs):
+    def before_process(self, p, enabled,*args, **kwargs):
         if not enabled: return
         nai_api_processing.patch_pi()        
         
-    def postprocess(self,enabled, p,*args, **kwargs):
+    def postprocess(self, p, enabled,*args, **kwargs):
         if not enabled: return
         nai_api_processing.unpatch_pi()
  
