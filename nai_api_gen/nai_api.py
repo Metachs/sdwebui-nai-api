@@ -82,10 +82,10 @@ def GET(key, attempts = 5, timeout = 30):
         r = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key), timeout= timeout)
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
             print(f"Request failed with error code: {r.status_code}, Retrying")
-            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429)
+            return GET(key, attempts = attempts - 1 , timeout=timeout)
         return r
     except requests.exceptions.Timeout as e:
-        if attempts > 0: return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429)
+        if attempts > 0: return GET(key, attempts = attempts - 1 , timeout=timeout)
         print(f"Request Timed Out after {timeout} seconds, Retrying")
         return e
     except Exception as e:
