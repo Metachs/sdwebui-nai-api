@@ -76,6 +76,46 @@ def LOAD(response,parameters):
         print(f"NAI Image Load Failure - Error Code: {response.status_code}")
         return None, response.status_code
 
+def GET(key, attempts = 5, timeout = 30):          
+    import requests
+    try:
+        r = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key), timeout= timeout)
+        if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
+            print(f"Request failed with error code: {r.status_code}, Retrying")
+            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429)
+        return r
+    except requests.exceptions.Timeout as e:
+        if attempts > 0: return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429)
+        print(f"Request Timed Out after {timeout} seconds, Retrying")
+        return e
+    except Exception as e:
+        return e
+
+def subscription_status(key):
+    if not key: return -1,False,0,0        
+    response = GET(key)
+    if response is not None and isinstance(response,requests.exceptions.RequestException):
+        print("Subscription Status Check Timed Out, Try Again.")
+        return 408,False,0,0
+    if response is None or not hasattr(response,'status_code'):
+        print ("Unknown Error", response)
+        return 404,False,0,0
+    if response.status_code==200:
+        content = response.json()
+        def max_unlimited():
+            max = 0
+            for l in content['perks']['unlimitedImageGenerationLimits']:
+                if l['maxPrompts'] > 0 and l['resolution'] >= max: max = l['resolution']
+            return max
+        max = max_unlimited()
+        active = content['active']        
+        unlimited = active and max >= 1048576        
+        points = content['trainingStepsLeft']['fixedTrainingStepsLeft']+content['trainingStepsLeft']['purchasedTrainingSteps']        
+        return response.status_code, unlimited, points, max
+    else: print (response.status_code)
+    return response.status_code,False,0,0
+
+
 def tryfloat(value, default = None):
     try:
         value = value.strip()
@@ -106,39 +146,6 @@ def prompt_has_weight(p):
     
 def prompt_is_nai(p):
     return "{" in p
-    
-def subscription_status(key):
-    if not key:
-        return -1,False,0,0        
-    import requests    
-    try:
-        response = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key),timeout=60)
-        if response.status_code==200:
-            content = response.json()
-            def max_unlimited():
-                max = 0
-                for l in content['perks']['unlimitedImageGenerationLimits']:
-                    if l['maxPrompts'] > 0 and l['resolution'] >= max: 
-                        max = l['resolution']
-                return max
-            max = max_unlimited()
-            active = content['active']
-            
-            unlimited = active and max >= 1048576
-            
-            points = content['trainingStepsLeft']['fixedTrainingStepsLeft']+content['trainingStepsLeft']['purchasedTrainingSteps']
-            
-            return response.status_code, unlimited, points, max
-        elif response.status_code==401: 
-            print ("Invalid Key")
-        else:
-            print (response.status_code)
-    except requests.exceptions.RequestException as e:
-        print("Subscription Status Check Timed Out, Try Again.")
-        return 408,False,0,0
-    except requests.exceptions.JSONDecodeError:
-        pass
-    return response.status_code,False,0,0
     
 def prompt_to_nai(p, parenthesis_only = False):
     chunks = []

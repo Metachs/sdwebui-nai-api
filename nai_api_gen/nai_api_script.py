@@ -280,9 +280,9 @@ class NAIGENScriptBase(scripts.Script):
         if not enable: self.disabled=True
         if self.disabled: return 
         
-        if not self.check_api_key():
-            self.fail(p,"Invalid NAI Key")
-            return
+        # if not self.check_api_key():
+            # self.fail(p,"Invalid NAI Key")
+            # return
             
         self.do_nai_post=nai_post            
         self.setup_sampler_name(p, sampler)        
