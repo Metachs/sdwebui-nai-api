@@ -9,6 +9,7 @@ import math
 import re
 import base64
 import time
+import requests
 
 NAIv1 = "nai-diffusion"
 NAIv1c = "safe-diffusion"
@@ -40,7 +41,6 @@ def get_headers(key):
 TERMINAL_ERRORS = [400,401,403,404]
 
 def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0):          
-    import requests
     try:
         r = requests.post('https://api.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
@@ -59,7 +59,6 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0):
         return e
 
 def LOAD(response,parameters):
-    import requests
     if response is None or not hasattr(response,"status_code") or isinstance(response,Exception):
         if isinstance(response,requests.exceptions.Timeout):
             return None, 408
@@ -77,7 +76,6 @@ def LOAD(response,parameters):
         return None, response.status_code
 
 def GET(key, attempts = 5, timeout = 30):          
-    import requests
     try:
         r = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key), timeout= timeout)
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
