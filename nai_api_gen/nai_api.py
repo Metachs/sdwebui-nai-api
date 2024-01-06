@@ -229,6 +229,80 @@ def prompt_to_nai(p, parenthesis_only = False):
     if start<len(p): addtext(len(p),len(p))
     if not parenthesis_only: out = out.replace("\\(","(").replace("\\)",")")
     return out
+
+
+def prompt_to_a1111(p):    
+    do = '['
+    dx = ']'
+    uo = '{'
+    ux = '}'
+    
+    stack = [] # type, seqIndex
+    seq = [[0,None,len(p),0]] # pIndex,weightType,otherIndex,weightCount    
+    def push(i,c):
+        if seq[-1][1] is None:
+            if seq[-1][0] == i: seq.pop() # Remove Zero Length Sequence
+            else: seq[-1][2]=i # Set Sequence End Point
+        if c in [dx,ux]:
+            o = do if c == dx else uo
+            if len(stack) > 0 and stack[-1][0] == o: # if close, check for matching open
+                closed = stack.pop()[1]
+                seq[closed][2] = len(seq)
+                seq.append([i+1,c,closed,1])
+            else: c = do if c == ux else uo # No matching open, invert 
+        if c in [do,uo]: 
+            stack.append([c,len(seq)]) # push weight 
+            seq.append([i+1,c,i+1,1])
+        if i+1 < len(p): seq.append([i+1,None,len(p),0]) # Begin text sequence
+        
+    for i in range(len(p)): # build text/weight sequence
+        if p[i] not in [do,uo,dx,ux] or i>0 and p[i-1] == '\\': continue
+        push(i,p[i])
+
+    for op in reversed(stack): # close open weights
+        o = op[0]
+        push(len(p), dx if o == do else ux)
+    
+    for i in range(1,len(seq)): # Combine adjacent weights
+        c = seq[i][1]
+        if c in [dx,ux] and c == seq[i-1][1] and seq[i-1][3] > 0:
+            if seq[i][2] +1 == seq[i-1][2]:
+                seq[i][3]+=seq[i-1][3]
+                seq[seq[i][2]][3] = seq[i][3]
+                seq[i-1][3] = 0
+                seq[seq[i-1][2]][3] = 0
+            
+    for i in range(1,len(seq)): # remove empty weights
+        c = seq[i][1]
+        if c in [dx,ux] and seq[i][3]>0:
+            content = False
+            for x in range(seq[i][2]+1,i):
+                if seq[x][1] is None and seq[x][0] < seq[x][2]:
+                    content=True
+                    break
+            if not content:
+                seq[i][3] = 0
+                seq[seq[i][2]][3]=0
+        
+    def weight(up, cnt):
+        weight = 1
+        for i in range(cnt):
+            if up: weight *= 1.05
+            else: weight /= 1.05
+        return weight
+    
+    out = ""
+    for s in seq:
+        c = s[1]
+        o = s[0]
+        x = s[2]
+        if c is None and x - o > 0: out+=p[o:x]
+        if c is not None and s[3] > 0:            
+            if c in [do,uo]: out+='('
+            if c == dx: out+=f':{weight(False,s[3]):.5g})'
+            if c == ux: out+=f':{weight(True,s[3]):.5g})'
+
+    return out
     
     
 def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False):

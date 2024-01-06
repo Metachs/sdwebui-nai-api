@@ -13,7 +13,7 @@ import warnings
 import gzip
 import json
 
-from nai_api_gen.nai_api import get_set_noise_schedule
+from nai_api_gen.nai_api import get_set_noise_schedule, prompt_to_a1111
 from nai_api_gen import nai_api
     
 original_read_info_from_image = None
@@ -78,8 +78,16 @@ def process_nai_geninfo(items):
         
         sampler = sd_samplers.samplers_map.get(j["sampler"].replace('ancestral','a'), None)
         
+        prompt = items["Description"]
+        negs = j["uc"]
+        if shared.opts.data.get('nai_api_convertImportedWeights', True): 
+            try:
+                prompt = prompt_to_a1111(prompt)
+                negs = prompt_to_a1111(negs)
+            except Exception as e:
+                print("Error converting NAI Prompts: ",e)
         if sampler is None: sampler = 'DDIM' if 'ddim' in j["sampler"].lower() else 'Euler a'        
-        geninfo = f'{items["Description"]}\nNegative prompt: {j["uc"]}\nSteps: {j["steps"]}, Sampler: {sampler}, CFG scale: {j["scale"]}, Seed: {j["seed"]}, Size: {j["width"]}x{j["height"]}'
+        geninfo = f'{prompt}\nNegative prompt: {negs}\nSteps: {j["steps"]}, Sampler: {sampler}, CFG scale: {j["scale"]}, Seed: {j["seed"]}, Size: {j["width"]}x{j["height"]}'
     except Exception as e:
         print (e)
         return geninfo,items
