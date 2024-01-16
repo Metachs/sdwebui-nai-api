@@ -14,6 +14,7 @@ def on_ui_settings():
     addopt('nai_api_key', shared.OptionInfo('', "NAI API Key - See https://docs.sillytavern.app/usage/api-connections/novelai/ ", gr.Textbox, section=section))
     
     addopt('nai_api_skip_checks', shared.OptionInfo(False, "Skip NAI account/subscription/Anlas checks.",gr.Checkbox, section=section))
+    addopt('nai_api_convertImportedWeights', shared.OptionInfo(True, "Convert NAI weights to A1111 when importing NAI prompts.",gr.Checkbox, section=section))
     
     addopt('nai_api_png_info', shared.OptionInfo( 'NAI Only', "Stealth PNG Info - Read/Write Stealth PNG info for NAI images only (required to emulate NAI), or All Images",gr.Radio, {"choices": ['NAI Only', 'All Images'] }, section=section))    
     
