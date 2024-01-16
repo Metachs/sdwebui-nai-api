@@ -224,7 +224,7 @@ def prompt_to_nai(p, parenthesis_only = False):
                     elif weight < 1: addtext(state[2],i+1,'['*adj ,']'*adj )
                     else: addtext(state[2],i+1,'{'*adj,'}'*adj )
                     continue
-            if parenthesis_only: addtext(i,i+1,'(')
+            if parenthesis_only: addtext(i,i+1,'(',')')
             else: addtext(i,i+1,'{{','}}')
     if start<len(p): addtext(len(p),len(p))
     if not parenthesis_only: out = out.replace("\\(","(").replace("\\)",")")
