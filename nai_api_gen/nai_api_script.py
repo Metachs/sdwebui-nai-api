@@ -61,7 +61,7 @@ class NAIGENScriptBase(scripts.Script):
         self.strength = 0
         # Experimental
         self.use_batch_processing = False
-        self.dohash = False
+        self.experimental = False
         self.alt_interface = False
         
     def title(self):
@@ -70,12 +70,12 @@ class NAIGENScriptBase(scripts.Script):
     def show(self, is_img2img):
         return False
         
-    def before_process(self, p, enabled,*args, **kwargs):
-        if not enabled: return
+    def before_process(self, p, enable,*args, **kwargs):
+        if not enable: return
         nai_api_processing.patch_pi()        
         
-    def postprocess(self, p, enabled,*args, **kwargs):
-        if not enabled: return
+    def postprocess(self, p, enable,*args, **kwargs):
+        if not enable: return
         nai_api_processing.unpatch_pi()
  
     def ui(self, is_img2img):        
@@ -303,7 +303,7 @@ class NAIGENScriptBase(scripts.Script):
         
         if  do_local_img2img== 1 or do_local_img2img == 2:
             self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local)
-        elif not self.use_batch_processing:
+        elif not self.use_batch_processing and ( not self.experimental or not getattr(p,"hr_prompt" ,False) ) :
             p.disable_extra_networks=True
             # p.batch_size = p.n_iter * p.batch_size
             # p.n_iter = 1
@@ -375,31 +375,31 @@ class NAIGENScriptBase(scripts.Script):
                     mask = images.resize_image(p.resize_mode if p.resize_mode < 3 else 0, mask, p.width, p.height)
                     overlay_mask = Image.fromarray(np.clip((np.array(mask).astype(np.float32)) * 2, 0, 255).astype(np.uint8))
                 mask = mask.convert('L')
-                
                 init_masked=[]
-                for i in range(len(p.init_images)):
-                    image = p.init_images[i]
+                    
+            for i in range(len(p.init_images)):
+            
+                if shared.opts.data.get('save_init_img',False) and not hasattr(p,'enable_hr'):
+                    init_img_hash = hashlib.md5(image.tobytes()).hexdigest()
+                    images.save_image(image, path=shared.opts.outdir_init_images, basename=None, forced_filename=init_img_hash, save_to_dirs=False)
+                    if i == 0 : p.init_image_hash = init_img_hash
+                    
+                image = images.flatten(p.init_images[i], shared.opts.img2img_background_color)
+                
+                if crop is None and (image.width != p.width or image.height != p.height):
+                    image = images.resize_image(p.resize_mode if p.resize_mode < 3 else 0, image, p.width, p.height)
+                    
+                if init_masked is not None:
                     image_masked = Image.new('RGBa', (image.width, image.height))
                     DEBUG_LOG(image.width, image.height, p.width, p.height, mask.width, mask.height, overlay_mask.width, overlay_mask.height)
                     image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(overlay_mask.convert('L')))
                     init_masked.append(image_masked.convert('RGBA'))
-                    
-            for i in range(len(p.init_images)):
-
-                image = images.flatten(p.init_images[i], shared.opts.img2img_background_color)
-                if shared.opts.data.get('save_init_img',False) and not hasattr(p,'enable_hr'):
-                    init_img_hash = hashlib.md5(image.tobytes()).hexdigest()
-                    images.save_image(image, path=shared.opts.outdir_init_images, basename=None, forced_filename=init_img_hash, save_to_dirs=False)
-                    if i == 0 : p.init_image_hash = init_img_hash                    
+                
                 if crop is not None:
                     image = image.crop(crop)
                     image = images.resize_image(2, image, p.width, p.height)
-                else:
-                    if image.width != p.width or image.height != p.height:
-                        image = images.resize_image(p.resize_mode if p.resize_mode < 3 else 0, image, p.width, p.height)
 
                 init_images.append(image)
-                
                 
             self.mask = mask
             self.init_masked = init_masked
@@ -410,6 +410,9 @@ class NAIGENScriptBase(scripts.Script):
             self.mask = None
             self.init_masked = None
             self.crop = None
+            
+        # Strip extra networks from prompt
+        p.all_prompts, _ = extra_networks.parse_prompts(p.all_prompts)
         
         devices.torch_gc()
 
@@ -486,6 +489,15 @@ class NAIGENScriptBase(scripts.Script):
         
         self.get_batch_images(p, getparams, save_images = isimg2img and getattr(p,"inpaint_full_res",False) and shared.opts.data.get('nai_api_save_fragments', False), save_suffix ="-nai-init-image" if do_local_img2img > 0 else "" ,overlay = inpaint_mode == 1 or getattr(p,"inpaint_full_res",False))
         
+        if self.experimental:
+            if getattr(p,"enable_hr", False):
+                p.init_img = self.images[0]
+                p.init_img_denoising_strength=0
+                p.init_img_resize_mode=3
+                p.use_txt_init_img=True
+                p.save_init_image=True
+                return
+                
         if not self.use_batch_processing:
             if do_local_img2img == 0:
                p.nai_processed = Processed(p, self.images, p.seed, self.texts[0] if len(self.texts) >0 else "", subseed=p.all_subseeds[0], infotexts = self.texts) 
@@ -498,7 +510,9 @@ class NAIGENScriptBase(scripts.Script):
                 self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local)
                     
                 p.init_images = self.images
-                self.include_nai_init_images_in_results=True            
+                self.include_nai_init_images_in_results=True
+                
+                
             
     
     def get_batch_images(self, p, getparams, save_images = False , save_suffix = "", overlay = True):          
@@ -519,7 +533,7 @@ class NAIGENScriptBase(scripts.Script):
 
             i = len(self.images)
             parameters = getparams(i)            
-            if self.dohash:# and hasattr(p, 'enable_hr'):
+            if self.experimental:# and hasattr(p, 'enable_hr'):
                 hash = hashdic.get(hashlib.md5(parameters.encode()).hexdigest(),None)
                 imgp = None if hash is None else os.path.join(shared.opts.outdir_init_images, "nai", f"{hash}.png")
                 if imgp is not None and os.path.exists(imgp):
@@ -548,7 +562,7 @@ class NAIGENScriptBase(scripts.Script):
                 continue
          
             
-            if self.dohash:# and hasattr(p, 'enable_hr'):
+            if self.experimental:# and hasattr(p, 'enable_hr'):
                 hash = hashlib.md5(image.tobytes()).hexdigest()
                 if not self.isimg2img: p.extra_generation_params["txt_init_img_hash"] = hash
                 hashdic[hashlib.md5(parameters.encode()).hexdigest()] = hash
@@ -572,7 +586,7 @@ class NAIGENScriptBase(scripts.Script):
         for i in range(cur_iter*batch_size, cur_iter*batch_size+batch_size):
             if i >= len(self.images):break
             if self.images[i] is None:
-                if self.dohash and batch_size * iter_count == 1:  p.enable_hr = False 
+                if self.experimental and batch_size * iter_count == 1:  p.enable_hr = False 
                 # Use init image if image loading fails
                 if self.init_images is not None and i < len(self.init_images):
                     self.images[i]=self.init_images[i]
