@@ -378,13 +378,13 @@ class NAIGENScriptBase(scripts.Script):
                 init_masked=[]
                     
             for i in range(len(p.init_images)):
-            
+                image = p.init_images[i]
                 if shared.opts.data.get('save_init_img',False) and not hasattr(p,'enable_hr'):
                     init_img_hash = hashlib.md5(image.tobytes()).hexdigest()
                     images.save_image(image, path=shared.opts.outdir_init_images, basename=None, forced_filename=init_img_hash, save_to_dirs=False)
                     if i == 0 : p.init_image_hash = init_img_hash
                     
-                image = images.flatten(p.init_images[i], shared.opts.img2img_background_color)
+                image = images.flatten(image, shared.opts.img2img_background_color)
                 
                 if crop is None and (image.width != p.width or image.height != p.height):
                     image = images.resize_image(p.resize_mode if p.resize_mode < 3 else 0, image, p.width, p.height)
