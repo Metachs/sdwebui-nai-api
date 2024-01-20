@@ -388,59 +388,11 @@ def on_ui_settings():
     shared.opts.add_option("stealth_pnginfo_compression", shared.OptionInfo(
         True, "Stealth PNGinfo compression", gr.Checkbox, {"interactive": True}, section=section))
 
-
-def custom_image_preprocess(self, x):
-    if x is None:
-        return x
-
-    mask = ""
-    if self.tool == "sketch" and self.source in ["upload", "webcam"]:
-        assert isinstance(x, dict)
-        x, mask = x["image"], x["mask"]
-
-    assert isinstance(x, str)
-    im = processing_utils.decode_base64_to_image(x)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        im = im.convert(self.image_mode)
-    if self.shape is not None:
-        im = processing_utils.resize_and_crop(im, self.shape)
-    if self.invert_colors:
-        im = PIL.ImageOps.invert(im)
-    if (
-            self.source == "webcam"
-            and self.mirror_webcam is True
-            and self.tool != "color-sketch"
-    ):
-        im = PIL.ImageOps.mirror(im)
-
-    if self.tool == "sketch" and self.source in ["upload", "webcam"]:
-        mask_im = None
-        if mask is not None:
-            mask_im = processing_utils.decode_base64_to_image(mask)
-
-        return {
-            "image": self._format_image(im),
-            "mask": self._format_image(mask_im),
-        }
-
-    return self._format_image(im)
-
-
 def on_after_component_change_pnginfo_image_mode(component, **_kwargs):
     if type(component) is gr.State:
         return
     if type(component) is gr.Image and component.elem_id == 'pnginfo_image':
         component.image_mode = 'RGBA'
-
-    def clear_alpha(param):
-        output_image = param['image'].convert('RGB')
-        return output_image
-
-    if type(component) is gr.Image and component.elem_id == 'img2maskimg':
-        component.upload(clear_alpha, component, component)
-        component.preprocess = custom_image_preprocess.__get__(component, gr.Image)
-
 
 def stealth_resize_image(resize_mode, im, width, height, upscaler_name=None):
     if im.mode == 'RGBA': im = im.convert('RGB')
