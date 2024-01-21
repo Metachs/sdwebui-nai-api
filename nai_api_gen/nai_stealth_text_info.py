@@ -49,7 +49,7 @@ def script_unload():
     if original_flatten is not None: images.flatten = original_flatten
     original_read_info_from_image=None
     original_resize_image=None
-    original_flatten=None        
+    original_flatten=None
 
 def stealth_flatten(i,c):
     if has_stealth_pnginfo(i): return i.convert("RGB")
@@ -255,7 +255,7 @@ def read_info_from_image_stealth(image,force_stealth = False):
     # Standard Metadata
     try:    
         if image.info is not None and image.info.get("Software", None) == "NovelAI":
-            if 'parameters' in image.info and image.info.parameters and image.info.parameters!="None":
+            if 'parameters' in image.info and image.info['parameters'] and image.info['parameters']!="None":
                 # Image has both A1111 and NAI metadata, remove NAI Software entry so A1111 reads it's own metadata.
                 image.info.pop("Software")
                 return original_read_info_from_image(image)            
