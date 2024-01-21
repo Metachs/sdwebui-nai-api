@@ -13,19 +13,18 @@ import warnings
 import gzip
 import json
 
-from nai_api_gen.nai_api import get_set_noise_schedule, prompt_to_a1111
+from nai_api_gen.nai_api import get_set_noise_schedule, prompt_to_a1111, prompt_to_nai
 from nai_api_gen import nai_api
     
 original_read_info_from_image = None
 original_resize_image = None
-original_send_image_and_dimensions = None
+original_flatten = None
     
 def script_setup():
     global original_read_info_from_image
     global original_resize_image
-    global original_send_image_and_dimensions
+    global original_flatten
     
-    script_callbacks.on_ui_settings(on_ui_settings)
     script_callbacks.on_before_image_saved(add_stealth_pnginfo)
     script_callbacks.on_after_component(on_after_component_change_pnginfo_image_mode)
     
@@ -34,26 +33,36 @@ def script_setup():
     if(original_read_info_from_image is not None): return
     
     original_read_info_from_image = images.read_info_from_image
-    images.read_info_from_image = read_info_from_image_stealth
-    original_send_image_and_dimensions = generation_parameters_copypaste.send_image_and_dimensions
-    generation_parameters_copypaste.send_image_and_dimensions = send_rgb_image_and_dimension
     original_resize_image = images.resize_image
+    original_flatten = images.flatten
+    
+    images.read_info_from_image = read_info_from_image_stealth
     images.resize_image = stealth_resize_image
+    images.flatten = stealth_flatten
 
 def script_unload():
     global original_read_info_from_image
     global original_resize_image
-    global original_send_image_and_dimensions
+    global original_flatten
     if original_read_info_from_image is not None: images.read_info_from_image = original_read_info_from_image
-    if original_send_image_and_dimensions is not None: generation_parameters_copypaste.send_image_and_dimensions = original_send_image_and_dimensions
     if original_resize_image is not None: images.resize_image = original_resize_image
+    if original_flatten is not None: images.flatten = original_flatten
     original_read_info_from_image=None
     original_resize_image=None
-    original_send_image_and_dimensions=None        
-    
-#Fix for not saving PNGInfo on saved images, probably a better way but this was the easiest
-# TODO: See if I can preserve both A1111 and NAI metadata
+    original_flatten=None        
 
+def stealth_flatten(i,c):
+    if has_stealth_pnginfo(i): return i.convert("RGB")
+    return original_flatten(i,c)
+
+def on_after_component_change_pnginfo_image_mode(component, **_kwargs):
+    if type(component) is gr.Image and component.elem_id == 'pnginfo_image':
+        component.image_mode = 'RGBA'
+
+def stealth_resize_image(resize_mode, im, width, height, upscaler_name=None):
+    if has_stealth_pnginfo(im): im = im.convert('RGB')
+    return original_resize_image(resize_mode, im, width, height, upscaler_name)
+    
 def add_stealth_pnginfo(params: ImageSaveParams):
     
     nai_api_png_info = shared.opts.data.get("nai_api_png_info", 'NAI Only')
@@ -68,29 +77,36 @@ def add_stealth_pnginfo(params: ImageSaveParams):
     if nai_api_png_info == 'NAI Only': return
     add_data(params, 'alpha', True)
 
-
 def process_nai_geninfo(items):
     try:
         import json
-        j = json.loads(items["Comment"])
+        j = json.loads(items["Comment"])        
         
         from modules import sd_samplers
-        
         sampler = sd_samplers.samplers_map.get(j["sampler"].replace('ancestral','a'), None)
         
         prompt = items["Description"]
         negs = j["uc"]
+        
         if shared.opts.data.get('nai_api_convertImportedWeights', True): 
             try:
                 prompt = prompt_to_a1111(prompt)
                 negs = prompt_to_a1111(negs)
+                if shared.opts.data.get('nai_verbose_logging', False):
+                    p2=prompt_to_nai(prompt,True)
+                    n2=prompt_to_nai(negs,True)
+                    if p2 != items["Description"]:print(f"Bad conversion:\n'{items['Description']}'\n\n'{p2}'\n\n'{prompt}'")
+                    if n2 != j["uc"] :print(f"Bad conversion:\n'{j['uc']}'\n\n'{n2}'\n\n'{negs}'")                    
             except Exception as e:
                 print("Error converting NAI Prompts: ",e)
+                
         if sampler is None: sampler = 'DDIM' if 'ddim' in j["sampler"].lower() else 'Euler a'        
         geninfo = f'{prompt}\nNegative prompt: {negs}\nSteps: {j["steps"]}, Sampler: {sampler}, CFG scale: {j["scale"]}, Seed: {j["seed"]}, Size: {j["width"]}x{j["height"]}'
+        
     except Exception as e:
         print (e)
         return geninfo,items
+        
     PREFIX = "NAI "    
     def add(s="", quote =False, name = None,value = None ):
         nonlocal geninfo
@@ -183,8 +199,6 @@ def prepare_data(params, mode='alpha', compressed=False):
     binary_param_len = format(len(binary_param), '032b')
     return binary_signature + binary_param_len + binary_param
 
-
-
 def add_data(params, mode='alpha', compressed=False):
     binary_data = prepare_data(params.pnginfo['parameters'], mode, compressed)
     if mode == 'alpha':
@@ -217,32 +231,40 @@ def add_data(params, mode='alpha', compressed=False):
         if end_write:
             break
 
+def has_stealth_pnginfo(image):
+    if image.mode != 'RGBA': return False
+    width, height = image.size
+    pixels = image.load()
+    buffer_a = ''
+    index_a = 0
+    for x in range(width):
+        for y in range(height):
+            r, g, b, a = pixels[x, y]
+            buffer_a += str(a & 1)
+            index_a += 1
+            if index_a == len('stealth_pnginfo') * 8:
+                decoded_sig = bytearray(int(buffer_a[i:i + 8], 2) for i in
+                                        range(0, len(buffer_a), 8)).decode('utf-8', errors='ignore')
+                if decoded_sig in {'stealth_pnginfo', 'stealth_pngcomp'}:
+                    return True
+                else:
+                    return False
+    return False
 
-
-def read_info_from_image_stealth(image):
-    
-    # NAI Metadata
+def read_info_from_image_stealth(image,force_stealth = False):
+    # Standard Metadata
     try:    
         if image.info is not None and image.info.get("Software", None) == "NovelAI":
-            if 'parameters' in image.info:
+            if 'parameters' in image.info and image.info.parameters and image.info.parameters!="None":
                 # Image has both A1111 and NAI metadata, remove NAI Software entry so A1111 reads it's own metadata.
                 image.info.pop("Software")
-                return original_read_info_from_image(image)
-            
-            return process_nai_geninfo(image.info)
-            
+                return original_read_info_from_image(image)            
+            return process_nai_geninfo(image.info)            
         geninfo, items = original_read_info_from_image(image)        
         if geninfo is not None: return geninfo, items        
     except Exception as e:
         print(e)
-
-    # Original Metadata
-    try:
-        geninfo, items = original_read_info_from_image(image)        
-        if geninfo is not None: return geninfo, items
-    except Exception as e:
-        print (e)
-
+        
     # Stealth PNG Info
     width, height = image.size
     pixels = image.load()
@@ -357,44 +379,3 @@ def read_info_from_image_stealth(image):
             print (e)
             
     return geninfo, items
-
-def send_rgb_image_and_dimension(x):
-    if isinstance(x, Image.Image):
-        img = x
-        if img.mode == 'RGBA':
-            img = img.convert('RGB')
-    else:
-        img = generation_parameters_copypaste.image_from_url_text(x)
-        if img.mode == 'RGBA':
-            img = img.convert('RGB')
-
-    if shared.opts.send_size and isinstance(img, Image.Image):
-        w = img.width
-        h = img.height
-    else:
-        w = gr.update()
-        h = gr.update()
-
-    return img, w, h
-
-
-def on_ui_settings():
-    section = ('stealth_pnginfo', "Stealth PNGinfo")
-    shared.opts.add_option("stealth_pnginfo", shared.OptionInfo(
-        True, "Save Stealth PNGinfo", gr.Checkbox, {"interactive": True}, section=section))
-    shared.opts.add_option("stealth_pnginfo_mode", shared.OptionInfo(
-        "alpha", "Stealth PNGinfo mode", gr.Dropdown, {"choices": ["alpha", "rgb"], "interactive": True},
-        section=section))
-    shared.opts.add_option("stealth_pnginfo_compression", shared.OptionInfo(
-        True, "Stealth PNGinfo compression", gr.Checkbox, {"interactive": True}, section=section))
-
-def on_after_component_change_pnginfo_image_mode(component, **_kwargs):
-    if type(component) is gr.State:
-        return
-    if type(component) is gr.Image and component.elem_id == 'pnginfo_image':
-        component.image_mode = 'RGBA'
-
-def stealth_resize_image(resize_mode, im, width, height, upscaler_name=None):
-    if im.mode == 'RGBA': im = im.convert('RGB')
-    return original_resize_image(resize_mode, im, width, height, upscaler_name)
-    
