@@ -20,9 +20,12 @@ def on_ui_settings():
     
     addopt('nai_api_timeout', shared.OptionInfo(120 , "Request Timeout - Time in seconds to wait before giving up on a request",gr.Slider, {"minimum":  30, "maximum": 360, "step": 5}, section=section))
     
-    addopt('nai_api_retry', shared.OptionInfo(2, "Request Retry Attempts - Number of times to retry a failed request before giving up",gr.Slider, {"minimum": 0, "maximum": 3, "step": 1}, section=section))
+    addopt('nai_api_retry', shared.OptionInfo(2, "Request Retry Attempts - Number of times to retry a failed request before giving up",gr.Slider, {"minimum": 0, "maximum": 3, "step": 1}, section=section))   
     
-    addopt('nai_api_wait_on_429', shared.OptionInfo(30, "Maximum time to wait before failing when a free opus request is rejected due to one already in progress.",gr.Slider, {"minimum": 0, "maximum": 120, "step": 1}, section=section))
+    
+    addopt('nai_api_wait_on_429', shared.OptionInfo(30, "Maximum total time to wait before failing after receiving a 429 error (Too many requests).",gr.Slider, {"minimum": 0, "maximum": 120, "step": 1}, section=section))
+    
+    addopt('nai_api_wait_on_429_time', shared.OptionInfo(5, "Time to wait between retry attempts after receiving a 429 error (Too many requests).",gr.Slider, {"minimum": 0, "maximum": 120, "step": 1}, section=section))
     
     
     addopt('nai_api_default_sampler', shared.OptionInfo('k_euler', "Fallback Sampler: Used when the NAI sampler is set to Auto and the primary Sampling method doesn't match any sampler available in NAI .",gr.Radio, {"choices": nai_api.NAI_SAMPLERS }, section=section))
