@@ -653,5 +653,7 @@ class NAIGENScriptBase(scripts.Script):
                 self.texts*=2
         elif self.mask is not None and overlay:
             for i in range(len(self.images)):
-                self.images[i] = self.images[i].convert("RGB").convert("RGBA").alpha_composite(self.init_masked[i % len(self.init_masked)]).convert("RGB")
+                image = self.images[i].convert("RGB").convert("RGBA")
+                image.alpha_composite(self.init_masked[i % len(self.init_masked)])
+                self.images[i] = image.convert("RGB")
         
