@@ -44,7 +44,7 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_4
         r = requests.post('https://api.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
             if r.status_code == 429 and wait_on_429 > 0:
-                time.sleep(wait_time)
+                time.sleep(wait_on_429_time)
                 wait_on_429 -= wait_on_429_time
                 attempts += 1
             print(f"Request failed with error code: {r.status_code}, Retrying")
