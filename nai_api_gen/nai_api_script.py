@@ -454,8 +454,11 @@ class NAIGENScriptBase(scripts.Script):
         if convert_prompts != "Never":
             if convert_prompts == "Always" or nai_api.prompt_has_weight(prompt): prompt = nai_api.prompt_to_nai(prompt,True)
             if convert_prompts == "Always" or nai_api.prompt_has_weight(neg): neg = nai_api.prompt_to_nai(neg,True)
-            prompt=prompt.replace('\\(','(').replace('\\)',')')
-            neg=neg.replace('\\(','(').replace('\\)',')')
+            
+        prompt = prompt.replace('\\(','(').replace('\\)',')') # Un-Escape parenthesis
+        neg = neg.replace('\\(','(').replace('\\)',')') #
+        prompt = prompt.replace('\\','\\\\') # Escape Backslashes
+        neg = neg.replace('\\','\\\\')
         return prompt, neg
         
     def infotext(self,p,i):
@@ -637,7 +640,7 @@ class NAIGENScriptBase(scripts.Script):
                 over = self.init_masked[i % len(self.init_masked)]
                 image = Image.new("RGBA", over.size )
                 image.paste(images.resize_image(1, self.images[i].convert("RGB"), self.crop[2]-self.crop[0], self.crop[3]-self.crop[1]), (self.crop[0], self.crop[1]))
-                image.alpha_composite(over)
+                image.alpha_composite(over)          
                 
                 self.images[i] = image
                 if hasattr(self, 'mask_for_overlay') and self.mask_for_overlay and any([shared.opts.save_mask, shared.opts.save_mask_composite, shared.opts.return_mask, shared.opts.return_mask_composite]):

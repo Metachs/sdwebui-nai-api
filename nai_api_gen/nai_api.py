@@ -225,7 +225,10 @@ def prompt_to_nai(p, parenthesis_only = False):
     return out
 
 
-def prompt_to_a1111(p):    
+def prompt_to_a1111(p):
+    p = re.sub("\\\\\\\\","\\\\",p) #remove escaped slashes
+    p = re.sub("(?<!\\\\)([\\(\\)])","\\\\\\1",p) #escape parenthesis
+    
     do = '['
     dx = ']'
     uo = '{'
