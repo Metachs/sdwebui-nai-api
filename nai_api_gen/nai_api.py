@@ -35,7 +35,7 @@ TERMINAL_ERRORS = [400,401,403,404]
 
 def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5):          
     try:
-        r = requests.post('https://api.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
+        r = requests.post('https://image.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
             if r.status_code == 429 and wait_on_429 > 0:
                 print(f"Error 429: Too many requests, Retrying")
@@ -416,6 +416,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     sm_dyn = "true" if sm_dyn else "false"
     qualityToggle = "true" if qualityToggle else "false"
     legacy_v3_extend = "true" if legacy_v3_extend else "false"
+    overlay = "true" if overlay else "false"
 
     reference = None    
     if reference_image is not None:
@@ -425,7 +426,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             reference_image = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")        
         reference = f',"reference_image":"{reference_image}","reference_information_extracted":{reference_information_extracted or 1},"reference_strength":{reference_strength or 0.6}'
     
-    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":1{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":"{qualityToggle}","sm":"{sm}","sm_dyn":"{sm_dyn}","dynamic_thresholding":"{dynamic_thresholding}","controlnet_strength":1,"legacy":"false","legacy_v3_extend":"{legacy_v3_extend}","add_original_image":"{overlay}"{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
+    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":1{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
 
 def noise_schedule_selected(sampler,noise_schedule):
     noise_schedule=noise_schedule.lower()
