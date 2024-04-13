@@ -46,8 +46,9 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_4
             return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time)
         return r
     except requests.exceptions.Timeout as e:
-        if attempts > 0: return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time)
+        if attempts > 0: 
         print(f"Request Timed Out after {timeout} seconds, Retrying")
+            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time)
         return e
     except Exception as e:
         return e
@@ -425,6 +426,23 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             reference_image.save(image_byte_array, format='PNG')
             reference_image = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")        
         reference = f',"reference_image":"{reference_image}","reference_information_extracted":{reference_information_extracted or 1},"reference_strength":{reference_strength or 0.6}'
+        elif isinstance(reference_image,list):
+            imgs=None
+            rextracts=None
+            rstrengths= None
+            for i in range(len(reference_image)):
+                img = reference_image[i]
+                if isinstance(img, Image.Image):
+                    image_byte_array = BytesIO()
+                    img.save(image_byte_array, format='PNG')
+                    img = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
+                    rextract = reference_information_extracted[i] if isinstance(reference_information_extracted,list) and len(reference_information_extracted) > i else (reference_information_extracted or 1.0)                    
+                    rstrength = reference_strength[i] if isinstance(reference_strength,list) and len(reference_strength) > i else (reference_strength or 0.6)
+
+                    imgs = f'"{img}"' if imgs is None else f'{imgs},"{img}"'
+                    rextracts = f'{rextract}' if rextracts is None else f'{rextracts},{rextract}'
+                    rstrengths = f'{rstrength}' if rstrengths is None else f'{rstrengths},{rstrength}'
+            reference = f',"reference_image_multiple":[{imgs}],"reference_information_extracted_multiple":[{rextracts}],"reference_strength_multiple":[{rstrengths}]'
     
     return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":1{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
 
