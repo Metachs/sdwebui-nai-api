@@ -47,7 +47,7 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_4
         return r
     except requests.exceptions.Timeout as e:
         if attempts > 0: 
-        print(f"Request Timed Out after {timeout} seconds, Retrying")
+            print(f"Request Timed Out after {timeout} seconds, Retrying")
             return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time)
         return e
     except Exception as e:
@@ -425,7 +425,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             image_byte_array = BytesIO()
             reference_image.save(image_byte_array, format='PNG')
             reference_image = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")        
-        reference = f',"reference_image":"{reference_image}","reference_information_extracted":{reference_information_extracted or 1},"reference_strength":{reference_strength or 0.6}'
+            reference = f',"reference_image":"{reference_image}","reference_information_extracted":{reference_information_extracted or 1},"reference_strength":{reference_strength or 0.6}'
         elif isinstance(reference_image,list):
             imgs=None
             rextracts=None
