@@ -15,8 +15,9 @@ NAIv1c = "safe-diffusion"
 NAIv1f = "nai-diffusion-furry"
 NAIv2 = "nai-diffusion-2"
 NAIv3 = "nai-diffusion-3"
+NAIv3f = "nai-diffusion-furry-3"
 
-nai_models = [NAIv3,NAIv2,NAIv1,NAIv1c,NAIv1f]
+nai_models = [NAIv3,NAIv2,NAIv1,NAIv1c,NAIv1f,NAIv3f]
 
 NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde"]
 noise_schedules = ["exponential","polyexponential","karras","native"]
@@ -319,12 +320,12 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     
     if prompt == "": prompt = " "    
     if model not in nai_models: model = NAIv3
-    
+    isV3 = model == NAIv3 or model == NAIv3f
     if "ddim" in sampler.lower():
-        sampler = "ddim_v3" if model == NAIv3 else "ddim"
+        sampler = "ddim_v3" if isV3 else "ddim"
     elif sampler.lower() not in NAI_SAMPLERS: sampler = "k_euler"
     
-    if "ddim" in sampler.lower() or model != NAIv3: 
+    if "ddim" in sampler.lower() or not isV3: 
         noise_schedule=""
     else:
         if noise_schedule.lower() not in noise_schedules: 
@@ -333,11 +334,11 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         if "_ancestral" in sampler and noise_schedule == "karras": noise_schedule = "native"
         noise_schedule = f',"noise_schedule":"{noise_schedule}"'
     
-    cfg_rescale = f',"cfg_rescale":{cfg_rescale}' if model == NAIv3 else ""
-    uncond_scale = f',"uncond_scale":{uncond_scale}' if model == NAIv3 or model == NAIv2 else ""
+    cfg_rescale = f',"cfg_rescale":{cfg_rescale}' if isV3 else ""
+    uncond_scale = f',"uncond_scale":{uncond_scale}' if isV3 or model == NAIv2 else ""
         
     if qualityToggle:
-        if model == NAIv3:
+        if isV3:
             tags = 'best quality, amazing quality, very aesthetic, absurdres'
             if tags not in prompt: prompt = f'{prompt}, {tags}'
         elif model == NAIv2:
@@ -349,7 +350,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             if not prompt.startswith(tags):
                 prompt = f'{tags}, {prompt}'    
     if ucPreset == 0:
-        if model == NAIv3:
+        if isV3:
             tags = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]'
         elif model == NAIv2:
             tags = 'lowres, bad, text, error, missing, extra, fewer, cropped, jpeg artifacts, worst quality, bad quality, watermark, displeasing, unfinished, chromatic aberration, scan, scan artifacts'
@@ -358,14 +359,14 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         if tags not in neg: neg = f'{tags}, {neg}'
     
     if ucPreset == 1:
-        if model == NAIv3 or model == NAIv2:
+        if isV3 or model == NAIv2:
             tags = 'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing'
         else:
             tags = 'lowres, text, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
         if tags not in neg: neg = f'{tags}, {neg}'
         
     if ucPreset == 2:
-        if model == NAIv3:
+        if isV3:
             tags = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], bad anatomy, bad hands, @_@, mismatched pupils, heart-shaped pupils, glowing eyes'
         elif model == NAIv2:
             tags = 'lowres, bad, text, error, missing, extra, fewer, cropped, jpeg artifacts, worst quality, bad quality, watermark, displeasing, unfinished, chromatic aberration, scan, scan artifacts'
@@ -375,7 +376,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             ucPreset = 0
         if tags not in neg: neg = f'{tags}, {neg}'
     
-    if ucPreset == 3 and model != NAIv3:
+    if ucPreset == 3 and not isV3:
         ucPreset = 2
             
     if isinstance(image, Image.Image):            

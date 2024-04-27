@@ -151,6 +151,7 @@ def process_nai_geninfo(items):
     elif model ==  "Stable Diffusion F4D50568": model = nai_api.NAIv1c
     elif model ==  "Stable Diffusion F64BA557": model = nai_api.NAIv1f
     elif model ==  "Stable Diffusion F1022D28": model = nai_api.NAIv2
+    elif model ==  "Stable Diffusion XL 9CC2F394": model = nai_api.NAIv3f
     else: model = nai_api.NAIv3
         
     add('model',value = model)    
