@@ -9,6 +9,7 @@ import re
 import base64
 import time
 import requests
+import random
 
 NAIv1 = "nai-diffusion"
 NAIv1c = "safe-diffusion"
@@ -38,9 +39,13 @@ last_request_time = None
 
 def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, minimum_delay = 0, wait_time_rand = 0):
     try:
+        global last_request_time
         if minimum_delay + wait_time_rand > 0 and last_request_time is not None:         
             delay = ( minimum_delay + random.randint(0, wait_time_rand) ) - (time.time() - last_request_time)
-            if delay > 0: time.sleep(delay)
+            print (delay)
+            if delay > 0: 
+                time.sleep(delay)
+                print (f"Waiting {delay:.2f} Seconds before next request")
         r = requests.post('https://image.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
         last_request_time = time.time()        
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
