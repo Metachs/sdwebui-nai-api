@@ -42,10 +42,9 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_4
         global last_request_time
         if minimum_delay + wait_time_rand > 0 and last_request_time is not None:         
             delay = ( minimum_delay + random.randint(0, wait_time_rand) ) - (time.time() - last_request_time)
-            print (delay)
             if delay > 0: 
-                time.sleep(delay)
                 print (f"Waiting {delay:.2f} Seconds before next request")
+                time.sleep(delay)
         r = requests.post('https://image.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
         last_request_time = time.time()        
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
