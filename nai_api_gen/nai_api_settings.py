@@ -18,6 +18,10 @@ def on_ui_settings():
     
     addopt('nai_api_png_info', shared.OptionInfo( 'NAI Only', "Stealth PNG Info - Read/Write Stealth PNG info for NAI images only (required to emulate NAI), or All Images",gr.Radio, {"choices": ['NAI Only', 'All Images'] }, section=section))    
     
+    addopt('nai_api_delay', shared.OptionInfo(0, "Minimum Time in seconds between successive API requests, may reduce Too Many Request errors.",gr.Slider, {"minimum":  0, "maximum": 32, "step": 1}, section=section))
+    
+    addopt('nai_api_delay_rand', shared.OptionInfo(0, "Random amount of time to wait between requests, adds a random value between 0 and n seconds to Minimum Time. May help avoid being incorrectly flagged as a bot.",gr.Slider, {"minimum":  0, "maximum": 32, "step": 1}, section=section))
+    
     addopt('nai_api_timeout', shared.OptionInfo(120 , "Request Timeout - Time in seconds to wait before giving up on a request",gr.Slider, {"minimum":  30, "maximum": 360, "step": 5}, section=section))
     
     addopt('nai_api_retry', shared.OptionInfo(2, "Request Retry Attempts - Number of times to retry a failed request before giving up",gr.Slider, {"minimum": 0, "maximum": 3, "step": 1}, section=section))   

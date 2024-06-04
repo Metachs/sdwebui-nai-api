@@ -1,6 +1,7 @@
 from modules import scripts, script_callbacks, shared
 import gradio as gr
 import os
+from nai_api_gen import nai_api
         
 def to_bool(v: str):
     try:

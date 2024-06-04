@@ -32,10 +32,16 @@ def get_headers(key):
         'content-type': "application/json",
     }
 
-TERMINAL_ERRORS = [400,401,403,404]
+TERMINAL_ERRORS = [401,403,404]
 
-def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5):          
+last_request_time = None
+
+def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, minimum_delay = 0, wait_time_rand = 0):
     try:
+        if minimum_delay + wait_time_rand > 0 and last_request_time is not None:         
+            delay = ( minimum_delay + random.randint(0, wait_time_rand) ) - (time.time() - last_request_time)
+            if delay > 0: time.sleep(delay)
+        last_request_time = time.time()
         r = requests.post('https://image.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
             if r.status_code == 429 and wait_on_429 > 0:
@@ -44,12 +50,13 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_4
                 wait_on_429 -= wait_on_429_time
                 attempts += 1
             else: print(f"Request failed with error code: {r.status_code}, Retrying")
-            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time)
+            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, minimum_delay = minimum_delay, wait_time_rand = wait_time_rand)
+        if r.status_code == 200: print(f'API Request Completed in {time.time() - last_request_time}s')
         return r
     except requests.exceptions.Timeout as e:
         if attempts > 0: 
             print(f"Request Timed Out after {timeout} seconds, Retrying")
-            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time)
+            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, minimum_delay = minimum_delay, wait_time_rand = wait_time_rand)
         return e
     except Exception as e:
         return e
