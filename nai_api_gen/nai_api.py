@@ -41,8 +41,8 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_4
         if minimum_delay + wait_time_rand > 0 and last_request_time is not None:         
             delay = ( minimum_delay + random.randint(0, wait_time_rand) ) - (time.time() - last_request_time)
             if delay > 0: time.sleep(delay)
-        last_request_time = time.time()
         r = requests.post('https://image.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
+        last_request_time = time.time()        
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
             if r.status_code == 429 and wait_on_429 > 0:
                 print(f"Error 429: Too many requests, Retrying")
@@ -51,7 +51,6 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_4
                 attempts += 1
             else: print(f"Request failed with error code: {r.status_code}, Retrying")
             return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, minimum_delay = minimum_delay, wait_time_rand = wait_time_rand)
-        if r.status_code == 200: print(f'API Request Completed in {time.time() - last_request_time}s')
         return r
     except requests.exceptions.Timeout as e:
         if attempts > 0: 
