@@ -444,13 +444,15 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
                     image_byte_array = BytesIO()
                     img.save(image_byte_array, format='PNG')
                     img = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
-                    rextract = reference_information_extracted[i] if isinstance(reference_information_extracted,list) and len(reference_information_extracted) > i else (reference_information_extracted or 1.0)                    
-                    rstrength = reference_strength[i] if isinstance(reference_strength,list) and len(reference_strength) > i else (reference_strength or 0.6)
+                if isinstance(img, str):
+                    rextract = reference_information_extracted[i] if isinstance(reference_information_extracted,list) and len(reference_information_extracted) > i else (reference_information_extracted if reference_information_extracted is not None else 1.0)                    
+                    rstrength = reference_strength[i] if isinstance(reference_strength,list) and len(reference_strength) > i else (reference_strength if reference_strength is not None else 0.6)
 
                     imgs = f'"{img}"' if imgs is None else f'{imgs},"{img}"'
                     rextracts = f'{rextract}' if rextracts is None else f'{rextracts},{rextract}'
                     rstrengths = f'{rstrength}' if rstrengths is None else f'{rstrengths},{rstrength}'
-            reference = f',"reference_image_multiple":[{imgs}],"reference_information_extracted_multiple":[{rextracts}],"reference_strength_multiple":[{rstrengths}]'
+            if imgs is not None: 
+                reference = f',"reference_image_multiple":[{imgs}],"reference_information_extracted_multiple":[{rextracts}],"reference_strength_multiple":[{rstrengths}]'
     
     return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":1{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
 
