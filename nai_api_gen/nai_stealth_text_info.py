@@ -69,7 +69,7 @@ def add_stealth_pnginfo(params: ImageSaveParams):
 
     if not params.filename.endswith('.png') or params.pnginfo is None:
         return
-    if shared.opts.outdir_init_images in params.filename: return # Do nothing if saving init image
+    if shared.opts.save_init_img and shared.opts.outdir_init_images and len(shared.opts.outdir_init_images) > 1 and params.filename.startswith(shared.opts.outdir_init_images): return # Do nothing if saving to init image directory
     if params.pnginfo.get("Software", None) == "NovelAI":
         add_data_nai(params.image, json.dumps(params.pnginfo))    
         return
