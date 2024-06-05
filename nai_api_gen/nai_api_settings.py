@@ -16,11 +16,19 @@ def on_ui_settings():
     addopt('nai_api_skip_checks', shared.OptionInfo(False, "Skip NAI account/subscription/Anlas checks.",gr.Checkbox, section=section))
     addopt('nai_api_convertImportedWeights', shared.OptionInfo(True, "Convert NAI weights to A1111 when importing NAI prompts.",gr.Checkbox, section=section))
     
-    addopt('nai_api_png_info', shared.OptionInfo( 'NAI Only', "Stealth PNG Info - Read/Write Stealth PNG info for NAI images only (required to emulate NAI), or All Images",gr.Radio, {"choices": ['NAI Only', 'All Images'] }, section=section))    
     
+    addopt('nai_api_png_info', shared.OptionInfo( 'NAI Only', "Stealth PNG Info - Read/Write Stealth PNG info for NAI images only (required to emulate NAI), or All Images",gr.Radio, {"choices": ['NAI Only', 'All Images'] }, section=section))    
+        
+        
+    addopt('nai_api_vibe_count', shared.OptionInfo(4, "Maximum Number of Vibe Transfer Images, Requires Restart",gr.Slider, {"minimum":  1, "maximum": 32, "step": 1}, section=section))
+    
+    addopt('nai_api_vibe_pre', shared.OptionInfo( 'NAI', "Preprocess Vibe Images - NAI: Use NAI's resizing method (Resizes images to 448x448, padding with black). None: Send original images, this changes results as NAI's servers seem to use a different scaling implementation.",gr.Radio, {"choices": ['NAI','None'] }, section=section))
+
+
     addopt('nai_api_delay', shared.OptionInfo(0, "Minimum Time in seconds between successive API requests, may reduce Too Many Request errors.",gr.Slider, {"minimum":  0, "maximum": 32, "step": 1}, section=section))
     
     addopt('nai_api_delay_rand', shared.OptionInfo(0, "Random amount of time to wait between requests, adds a random value between 0 and n seconds to Minimum Time. May help avoid being incorrectly flagged as a bot.",gr.Slider, {"minimum":  0, "maximum": 32, "step": 1}, section=section))
+    
     
     addopt('nai_api_timeout', shared.OptionInfo(120 , "Request Timeout - Time in seconds to wait before giving up on a request",gr.Slider, {"minimum":  30, "maximum": 360, "step": 5}, section=section))
     
@@ -45,9 +53,10 @@ def on_ui_settings():
     
     addopt('nai_query_logging', shared.OptionInfo(False, "Log NAI API Queries to console.",gr.Checkbox, section=section))
 
-    addopt('nai_verbose_logging', shared.OptionInfo(False, "Enable debug logging. IE Dump a bunch of garbage to the console.",gr.Checkbox, section=section))
-        
-    
+    addopt('nai_verbose_logging', shared.OptionInfo(False, "Enable debug logging. IE Dump a bunch of garbage to the console.",gr.Checkbox, section=section))        
+
+ 
+    # addopt('nai_api_vibe_size', shared.OptionInfo(448, "Vibe Image Downscaling size (Default: 448)",gr.Slider, {"minimum": 256, "maximum": 1024, "step": 64}, section=section))
         
 def DEBUG_LOG(*args,**kwargs): 
     if shared.opts.data.get('nai_verbose_logging', False): 

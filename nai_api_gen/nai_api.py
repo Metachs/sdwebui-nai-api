@@ -35,18 +35,32 @@ def get_headers(key):
 
 TERMINAL_ERRORS = [401,403,404]
 
-last_request_time = None
+#TODO: Move to js file
+vibe_processing_js ="""
+async function (source){
+    var img = new Image;
+    img.src = source;
+    await img.decode();
+
+	var size = 448;
+	var canvas = document.createElement("canvas");
+	canvas.width = size;
+	canvas.height = size;
+
+	var ctx = canvas.getContext("2d");
+	ctx.fillRect(0,0,canvas.width, canvas.height);
+
+	width = img.width > img.height ? size : img.width * (size / img.height) ;
+	height = img.height > img.width ? size : img.height * (size / img.width) ;
+	ctx.drawImage(img, (size - width) / 2, (size - height) / 2, width, height) ;
+
+	return canvas.toDataURL("image/png");
+}
+"""
 
 def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, minimum_delay = 0, wait_time_rand = 0):
     try:
-        global last_request_time
-        if minimum_delay + wait_time_rand > 0 and last_request_time is not None:         
-            delay = ( minimum_delay + random.randint(0, wait_time_rand) ) - (time.time() - last_request_time)
-            if delay > 0: 
-                print (f"Waiting {delay:.2f} Seconds before next request")
-                time.sleep(delay)
         r = requests.post('https://image.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
-        last_request_time = time.time()        
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
             if r.status_code == 429 and wait_on_429 > 0:
                 print(f"Error 429: Too many requests, Retrying")

@@ -2,6 +2,7 @@ import os
 import hashlib
 import math
 import re
+import random
 import time
 import gradio as gr
 
@@ -59,12 +60,14 @@ class NAIGENScriptBase(scripts.Script):
         self.cfg = 0
         self.steps = 0
         self.strength = 0
+        self.vibe_count = shared.opts.data.get('nai_api_vibe_count',4)
+        self.vibe_field_count = self.vibe_count*3
+        self.last_request_time = 0
         # Experimental
         self.use_batch_processing = False
         self.experimental = False
         self.dohash = False
-        self.alt_interface = False
-        
+
     def title(self):
         return self.NAISCRIPTNAME
 
@@ -94,54 +97,50 @@ class NAIGENScriptBase(scripts.Script):
                 do_local_img2img = gr.Dropdown(value=modes[0],choices= modes,type="index", label="Mode")
                 if is_img2img:
                     inpaint_mode = gr.Dropdown(value=inpaint_default, label=inpaint_label , choices=inpaint_choices, type="index")
-            if not self.alt_interface:
-                with gr.Row(variant="compact"):
-                    model = gr.Dropdown(label= "Model",value=nai_api.NAIv3,choices=nai_api.nai_models,type="value",show_label=False)
-                    sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto",*nai_api.NAI_SAMPLERS],type="value",show_label=False)
+            with gr.Row(variant="compact"):
+                model = gr.Dropdown(label= "Model",value=nai_api.NAIv3,choices=nai_api.nai_models,type="value",show_label=False)
+                sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto",*nai_api.NAI_SAMPLERS],type="value",show_label=False)
             with gr.Row(variant="compact"):
                 dynamic_thresholding = gr.Checkbox(value=False, label='Decrisper (Dynamic Thresholding)',min_width=64)
                 smea = gr.Radio(label="SMEA",value="Off",choices=["SMEA","DYN","Off"],type="value",show_label=False)
-                if self.alt_interface:
-                    cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='CFG Rescale', value=0.0)
-                    uncond_scale=gr.Slider(minimum=0.0, maximum=2.0, step=0.01, label='Uncond Scale', value=1.5)
             with gr.Row(variant="compact",visible = is_img2img):
                 extra_noise=gr.Slider(minimum=0.0, maximum=1.0 ,step=0.01, label='Noise', value=0.0)
                 add_original_image = gr.Checkbox(value=True, label='Inpaint: Overlay Image')            
             with gr.Accordion(label="Advanced", open=False):
                 with gr.Row(variant="compact"):
-                    if not self.alt_interface:
-                        cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='CFG Rescale', value=0.0)
-                        uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.01, label='Uncond Scale', value=1.0)
-                    else:
-                        model = gr.Dropdown(label= "Model",value=nai_api.NAIv3,choices=nai_api.nai_models,type="value",show_label=False)
-                        sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto",*nai_api.NAI_SAMPLERS],type="value",show_label=False)
+                    cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='CFG Rescale', value=0.0)
+                    uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.01, label='Uncond Scale', value=1.0)
                     noise_schedule = gr.Dropdown(label="Schedule",value="recommended",choices=["recommended","exponential","polyexponential","karras","native"],type="value")
                     if not is_img2img:
                         inpaint_mode = gr.Dropdown(value=inpaint_default, label=inpaint_label , choices=inpaint_choices, type="index")
-            with gr.Accordion(label='Vibe Transfer', open=False):                    
+
+            def dovibefields(idx):
                 with gr.Row(variant="compact"):
-                    reference_image = gr.Image(label="Reference Image", elem_id="txt2img_init_img", show_label=False, source="upload", interactive=True, type="pil", tool="editor", image_mode="RGBA")
-                    with gr.Column():
-                        reference_information_extracted=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Information Extracted', value=1.0)
-                        reference_strength=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Reference Strength', value=0.6)
-                with gr.Accordion(label='Vibe Transfer2', open=False):                    
-                    with gr.Row(variant="compact"):
-                        reference_image2 = gr.Image(label="Reference Image2", elem_id="txt2img_init_img2", show_label=False, source="upload", interactive=True, type="pil", tool="editor", image_mode="RGBA")
-                        with gr.Column():
-                            reference_information_extracted2=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Information Extracted2', value=1.0)
-                            reference_strength2=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Reference Strength2', value=0.6)
-                    with gr.Accordion(label='Vibe Transfer3', open=False):                    
-                        with gr.Row(variant="compact"):
-                            reference_image3 = gr.Image(label="Reference Image3", elem_id="txt2img_init_img3", show_label=False, source="upload", interactive=True, type="pil", tool="editor", image_mode="RGBA")
-                            with gr.Column():
-                                reference_information_extracted3=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Information Extracted3', value=1.0)
-                                reference_strength3=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Reference Strength3', value=0.6)
-                        with gr.Accordion(label='Vibe Transfer4', open=False):                    
-                            with gr.Row(variant="compact"):
-                                reference_image4 = gr.Image(label="Reference Image4", elem_id="txt2img_init_img4", show_label=False, source="upload", interactive=True, type="pil", tool="editor", image_mode="RGBA")
-                                with gr.Column():
-                                    reference_information_extracted4=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Information Extracted4', value=1.0)
-                                    reference_strength4=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='Reference Strength4', value=0.6)
+                    reference_image = gr.Image(label=f"Reference Image {idx}", elem_id=f"reference_image_{idx}", show_label=False, source="upload", interactive=True, type="pil", tool="editor", image_mode="RGBA",min_width=164)
+                    with gr.Column(min_width=64):
+                        reference_information_extracted=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label=f'Info Extracted {idx}', value=1.0,min_width=64)
+                        reference_strength=gr.Slider(minimum=-1.0, maximum=1.0, step=0.01, label=f'Reference Strength {idx}', value=0.6,min_width=64)
+                                    
+                reference_image_text=gr.Textbox(label=f"Reference Image Text Data {idx}", visible = False, value = "")
+
+                reference_image.change( fn=None, _js= nai_api.vibe_processing_js, inputs=[reference_image], show_progress=False,outputs = [reference_image_text])
+            
+                return reference_image,reference_information_extracted,reference_strength,reference_image_text
+
+            vibe_fields = []
+            
+            def dovibe(idx):
+                with gr.Accordion(label=f'Vibe Transfer {idx+1}', open=False): 
+                    fields = dovibefields(idx+1)
+                    for fi in range(len(fields)):
+                        if fi >= len(vibe_fields): vibe_fields.append([])
+                        vibe_fields[fi].append(fields[fi])
+                    if idx+1<self.vibe_count: dovibe(idx+1)       
+                    
+            dovibe(0)
+            vibe_fields = [f for field in vibe_fields[::-1] for f in field[::-1]]
+            self.vibe_field_count = len(vibe_fields)
+
             with gr.Accordion(label='Local Second Pass Overrides: Ignored if 0', open=False , visible = is_img2img):                    
                 with gr.Row(variant="compact"):
                     nai_resolution_scale=gr.Slider(minimum=0.0, maximum=4.0, step=0.05, label='Scale', value=1.0)
@@ -181,15 +180,13 @@ class NAIGENScriptBase(scripts.Script):
             (extra_noise, f'{PREFIX} '+ 'extra_noise'),
             (legacy_v3_extend, f'{PREFIX} '+ 'legacy_v3_extend'),
             (add_original_image, f'{PREFIX} '+ 'add_original_image'),
-            (reference_information_extracted, f'{PREFIX} '+ 'reference_information_extracted'),
-            (reference_strength, f'{PREFIX} '+ 'reference_strength'),
         ]
         
         self.paste_field_names = []
         for _, field_name in self.infotext_fields:
             self.paste_field_names.append(field_name)
             
-        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,reference_image,reference_information_extracted,reference_strength,reference_image2,reference_information_extracted2,reference_strength2,reference_image3,reference_information_extracted3,reference_strength3,reference_image4,reference_information_extracted4,reference_strength4,keep_mask_for_local]
+        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local,*vibe_fields]
 
     def skip_checks(self):
         return shared.opts.data.get('nai_api_skip_checks', False)
@@ -303,7 +300,7 @@ class NAIGENScriptBase(scripts.Script):
         p.width = width
         p.height = height
         
-    def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,reference_image,reference_information_extracted,reference_strength,reference_image2,reference_information_extracted2,reference_strength2,reference_image3,reference_information_extracted3,reference_strength3,reference_image4,reference_information_extracted4,reference_strength4,keep_mask_for_local,*args):        
+    def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local,*args):        
         if not enable: self.disabled=True
         if self.disabled: return 
         
@@ -329,7 +326,7 @@ class NAIGENScriptBase(scripts.Script):
         self.mask = getattr(p,"image_mask",None)
         
         if  do_local_img2img== 1 or do_local_img2img == 2:
-            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,reference_image,reference_information_extracted,reference_strength,reference_image2,reference_information_extracted2,reference_strength2,reference_image3,reference_information_extracted3,reference_strength3,reference_image4,reference_information_extracted4,reference_strength4,keep_mask_for_local)
+            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local)
         elif not self.use_batch_processing and ( not self.experimental or not getattr(p,"hr_prompt" ,False) ) :
             p.disable_extra_networks=True
             # p.batch_size = p.n_iter * p.batch_size
@@ -346,7 +343,7 @@ class NAIGENScriptBase(scripts.Script):
         p.denoising_strength = self.strength
         p.resize_mode = self.resize_mode
         
-    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,reference_image,reference_information_extracted,reference_strength,reference_image2,reference_information_extracted2,reference_strength2,reference_image3,reference_information_extracted3,reference_strength3,reference_image4,reference_information_extracted4,reference_strength4,keep_mask_for_local,*args):    
+    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local,*args):    
         if nai_resolution_scale> 0:
             p.width = int(p.width * nai_resolution_scale)
         p.height = int(p.height * nai_resolution_scale)
@@ -359,7 +356,7 @@ class NAIGENScriptBase(scripts.Script):
             p.resize_mode = 0
         
 
-    def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,reference_image,reference_information_extracted,reference_strength,reference_image2,reference_information_extracted2,reference_strength2,reference_image3,reference_information_extracted3,reference_strength3,reference_image4,reference_information_extracted4,reference_strength4,keep_mask_for_local,*args):
+    def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local,*args):
         if not enable: self.disabled=True
         if self.disabled: return 
         isimg2img=self.isimg2img
@@ -394,8 +391,6 @@ class NAIGENScriptBase(scripts.Script):
                 
                 if p.mask_blur > 0: mask = maskblur(mask, p.mask_blur)
                 
-                # mask = mask.convert('1').convert('L')
-                
                 self.mask_for_overlay = mask
 
                 if p.inpaint_full_res:
@@ -427,16 +422,12 @@ class NAIGENScriptBase(scripts.Script):
                     image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(overlay_mask.convert('L')))
                     init_masked.append(image_masked.convert('RGBA'))
                 
-                    
                 if crop is not None:
                     image = image.crop(crop)
                     image = images.resize_image(2, image, p.width, p.height)
  
                 if mask is not None:
                     w,h=mask.width,mask.height
-                    # mask = images.resize_image(0,mask,int(w/8), int(h/8), "Nearest").convert('1').convert('L')
-                    # self.nmask=mask
-                    # mask = images.resize_image(0,mask,int(w), int(h), "Nearest").convert('1').convert('L')
                     if p.inpainting_fill == 0: image.paste(masking.fill(image, mask).convert("RGBA").convert("RGBa"), mask=mask.convert('L'))
                     elif p.inpainting_fill == 2: 
                         x,y,s = image.width, image.height, 256
@@ -446,15 +437,8 @@ class NAIGENScriptBase(scripts.Script):
                             )
 
                     elif p.inpainting_fill == 3: 
-                        # image = masking.fill(image, mask)
                         x,y,s = image.width, image.height, 256
                         image.paste(Image.merge("RGB",(Image.effect_noise((x,y), s),Image.effect_noise((x,y), s),Image.effect_noise((x,y), s))).convert("RGBA").convert("RGBa"), mask=Image.eval(mask,lambda v:0 if v < 255 else 255 ))
-
-                    # images.save_image(image, path=shared.opts.outdir_extras_samples, basename="InitMask",save_to_dirs=False)
-                    # images.save_image(mask, path=shared.opts.outdir_extras_samples, basename="InitMask", save_to_dirs=False)
-                    # icm=image.copy()
-                    # icm.paste(Image.new("L",image.size,255 ),mask=mask.convert("L"))
-                    # images.save_image(icm, path=shared.opts.outdir_extras_samples, basename="InitMask", save_to_dirs=False)
 
                 init_images.append(image)
                 
@@ -467,23 +451,34 @@ class NAIGENScriptBase(scripts.Script):
             self.mask = None
             self.init_masked = None
             self.crop = None
-     
-        if reference_image is not None and shared.opts.data.get('save_init_img',False):
-            hash = hashlib.md5(reference_image.tobytes()).hexdigest()
-            p.extra_generation_params["reference_image_hash"] = hash
-            images.save_image(reference_image, path=shared.opts.outdir_init_images, basename=None, forced_filename=hash, save_to_dirs=False)
-        if reference_image2 is not None and shared.opts.data.get('save_init_img',False):
-            hash = hashlib.md5(reference_image2.tobytes()).hexdigest()
-            p.extra_generation_params["reference_image_hash2"] = hash
-            images.save_image(reference_image2, path=shared.opts.outdir_init_images, basename=None, forced_filename=hash, save_to_dirs=False)
-        if reference_image3 is not None and shared.opts.data.get('save_init_img',False):
-            hash = hashlib.md5(reference_image3.tobytes()).hexdigest()
-            p.extra_generation_params["reference_image_hash3"] = hash
-            images.save_image(reference_image3, path=shared.opts.outdir_init_images, basename=None, forced_filename=hash, save_to_dirs=False)
-        if reference_image4 is not None and shared.opts.data.get('save_init_img',False):
-            hash = hashlib.md5(reference_image4.tobytes()).hexdigest()
-            p.extra_generation_params["reference_image_hash4"] = hash
-            images.save_image(reference_image4, path=shared.opts.outdir_init_images, basename=None, forced_filename=hash, save_to_dirs=False)
+
+        self.reference_image = []
+        self.reference_information_extracted = []
+        self.reference_strength = []
+        
+        for i in range(1,1+self.vibe_count):
+            image = args[-(0 * self.vibe_count + i)]
+            self.reference_information_extracted.append(args[-(1 * self.vibe_count + i)])
+            self.reference_strength.append(args[-(2 * self.vibe_count + i)])            
+            self.reference_image.append(image)
+            if image is not None:
+                if shared.opts.data.get('nai_api_vibe_pre', 'NAI') == 'NAI':
+                    txt = args[-(3 * self.vibe_count + i)]
+                    txt = txt.split(',',1) if isinstance(txt, str) else None 
+                    if txt is not None and "image/png" in txt[0] and len(txt)>1:
+                        self.reference_image[-1] = txt[1].strip()
+                    else: print(f'Missing/Unknown Reference Image Data URL, sending Raw Image.')
+
+                p.extra_generation_params[f'{PREFIX} reference_information_extracted' if i == 1 else f'{PREFIX} reference_information_extracted{i}' ] = self.reference_information_extracted[-1]
+                p.extra_generation_params[f'{PREFIX} reference_strength' if i == 1 else f'{PREFIX} reference_strength{i}'] = self.reference_strength[-1]
+
+                if shared.opts.data.get('save_init_img',False):
+                    hash = hashlib.md5(image.tobytes()).hexdigest()
+                    p.extra_generation_params["reference_image_hash"if i==1 else f'reference_image_hash{i}' ] = hash
+                    if not os.path.exists(os.path.join(shared.opts.outdir_init_images,f"{hash}.png")):
+                        images.save_image(image.copy(), path=shared.opts.outdir_init_images, basename=None, forced_filename=hash, save_to_dirs=False,existing_info=image.info.copy())
+
+
         # Strip extra networks from prompt
         p.all_prompts, _ = extra_networks.parse_prompts(p.all_prompts)
         
@@ -510,7 +505,7 @@ class NAIGENScriptBase(scripts.Script):
         return create_infotext(p, p.all_prompts, p.all_seeds, p.all_subseeds, None, iteration, batch)
 
 
-    def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,reference_image,reference_information_extracted,reference_strength,reference_image2,reference_information_extracted2,reference_strength2,reference_image3,reference_information_extracted3,reference_strength3,reference_image4,reference_information_extracted4,reference_strength4,keep_mask_for_local,*args):
+    def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local,*args):
         if self.disabled or p.nai_processed is not None: return 
         DEBUG_LOG("nai_generate_images")
         
@@ -543,18 +538,6 @@ class NAIGENScriptBase(scripts.Script):
         p.extra_generation_params[f'{PREFIX} '+ 'uncond_scale'] = uncond_scale
         p.extra_generation_params[f'{PREFIX} '+ 'cfg_rescale'] = cfg_rescale
         p.extra_generation_params[f'{PREFIX} '+ 'legacy_v3_extend'] = legacy_v3_extend
-        if reference_image:
-            p.extra_generation_params[f'{PREFIX} '+ 'reference_information_extracted'] = reference_information_extracted
-            p.extra_generation_params[f'{PREFIX} '+ 'reference_strength'] = reference_strength        
-        if reference_image2:
-            p.extra_generation_params[f'{PREFIX} '+ 'reference_information_extracted2'] = reference_information_extracted2
-            p.extra_generation_params[f'{PREFIX} '+ 'reference_strength2'] = reference_strength2        
-        if reference_image3:
-            p.extra_generation_params[f'{PREFIX} '+ 'reference_information_extracted3'] = reference_information_extracted3
-            p.extra_generation_params[f'{PREFIX} '+ 'reference_strength3'] = reference_strength3
-        if reference_image4:
-            p.extra_generation_params[f'{PREFIX} '+ 'reference_information_extracted4'] = reference_information_extracted4
-            p.extra_generation_params[f'{PREFIX} '+ 'reference_strength4'] = reference_strength4
         
         if do_local_img2img != 0:        
             if nai_denoise_strength!= 0: p.extra_generation_params[f'{PREFIX} '+ 'nai_denoise_strength'] = nai_denoise_strength
@@ -572,16 +555,8 @@ class NAIGENScriptBase(scripts.Script):
             
             image= None if ( not isimg2img or do_local_img2img == 1 or self.init_images is None or len(self.init_images) == 0) else self.init_images[i % len(self.init_images)]
             
-            if reference_image2 is not None or reference_image3 is not None or reference_image4 is not None:
-                nonlocal reference_image
-                nonlocal reference_information_extracted
-                nonlocal reference_strength
-                reference_image = [reference_image,reference_image2,reference_image3,reference_image4]
-                reference_information_extracted = [reference_information_extracted,reference_information_extracted2,reference_information_extracted3,reference_information_extracted4]
-                reference_strength = [reference_strength,reference_strength2,reference_strength3,reference_strength4]
-            
             prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
-            return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask =self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=reference_image,reference_information_extracted=reference_information_extracted,reference_strength=reference_strength )
+            return NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask =self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength )
         
         self.get_batch_images(p, getparams, save_images = isimg2img and getattr(p,"inpaint_full_res",False) and shared.opts.data.get('nai_api_save_fragments', False), save_suffix ="-nai-init-image" if do_local_img2img > 0 else "" ,overlay = inpaint_mode == 1 or getattr(p,"inpaint_full_res",False))
         
@@ -603,7 +578,7 @@ class NAIGENScriptBase(scripts.Script):
                 self.all_prompts = p.all_prompts.copy()
                 self.all_negative_prompts = p.all_negative_prompts.copy()
                 
-                self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,reference_image,reference_information_extracted,reference_strength,reference_image2,reference_information_extracted2,reference_strength2,reference_image3,reference_information_extracted3,reference_strength3,reference_image4,reference_information_extracted4,reference_strength4,keep_mask_for_local)
+                self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local)
                     
                 p.init_images = self.images
                 self.include_nai_init_images_in_results=True
@@ -629,8 +604,7 @@ class NAIGENScriptBase(scripts.Script):
 
             i = len(self.images)
             parameters = getparams(i)            
-            if self.dohash:# and hasattr(p, 'enable_hr'):
-                # hash = hashdic.get(hashlib.md5(parameters.encode()).hexdigest(),None)
+            if self.dohash:
                 hash = hashlib.md5(parameters.encode()).hexdigest()
                 imgp = None if hash is None else os.path.join(shared.opts.outdir_init_images, "nai", f"{hash}.png")
                 if imgp is not None and os.path.exists(imgp):
@@ -644,10 +618,24 @@ class NAIGENScriptBase(scripts.Script):
             print(f"Requesting Image {i+1}/{p.n_iter*p.batch_size}: {p.width} x {p.height} - {p.steps} steps.")
             if shared.opts.data.get('nai_query_logging', False):                     
                 print(re.sub("\"image\":\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\".*?\"","\"mask\":\"\"" ,re.sub("\"reference_image\":\".*?\"","\"reference_image\":\"\"" ,re.sub("\"reference_image_multiple\":\[.*?\]","\"reference_image_multiple\":\"\"" ,parameters)))))
-
-            result = nai_api.POST(key, parameters,timeout = shared.opts.data.get('nai_api_timeout', 120), attempts =  shared.opts.data.get('nai_api_retry', 2) , wait_on_429 = shared.opts.data.get('nai_api_wait_on_429', 30) , wait_on_429_time = shared.opts.data.get('nai_api_wait_on_429_time', 5) )
+           
+            minimum_delay = shared.opts.data.get('nai_api_delay', 0)
+            wait_time_rand = shared.opts.data.get('nai_api_delay_rand', 0)
             
-            DEBUG_LOG("Request Complete, Reading Results",i)                    
+            if minimum_delay + wait_time_rand > 0 and self.last_request_time is not None:         
+                delay = ( minimum_delay + random.randint(0, wait_time_rand) )
+                if delay - (time.time() - self.last_request_time) > 0: 
+                    print (f"Waiting {delay  - (time.time() - self.last_request_time):.2f}s before sending request")
+                    time.sleep(delay  - (time.time() - self.last_request_time))
+                    
+            starttime = time.time()
+
+            result = nai_api.POST(key, parameters,timeout = shared.opts.data.get('nai_api_timeout', 120), attempts =  shared.opts.data.get('nai_api_retry', 2) , wait_on_429 = shared.opts.data.get('nai_api_wait_on_429', 30) , wait_on_429_time = shared.opts.data.get('nai_api_wait_on_429_time', 5))
+            
+            self.last_request_time = time.time()
+            
+            DEBUG_LOG("Request Complete, Reading Results",i)
+            
             image,code =  nai_api.LOAD(result, parameters)
             
             if code != 200 or image is None: 
@@ -658,17 +646,16 @@ class NAIGENScriptBase(scripts.Script):
                 elif code == 500: self.comment(p,f'ERROR: Request {i+1}/{p.n_iter*p.batch_size} Failed - Error Code:{code} Server Error')
                 else: self.comment(p,f'ERROR: Request {i+1}/{p.n_iter*p.batch_size} Failed - Error Code:{code}')
                 continue
-         
+                
+            print(f"Request Completed in {self.last_request_time - starttime:.2f}s")
             
-            if self.dohash:# and hasattr(p, 'enable_hr'):
-                # hash = hashlib.md5(image.tobytes()).hexdigest()
+            if self.dohash:
                 p.extra_generation_params["nai_gen_hash"] = hash
                 if not p.extra_generation_params.get("txt_init_img_hash",None): p.extra_generation_params["txt_init_img_hash"] = hash
-                # hashdic[hashlib.md5(parameters.encode()).hexdigest()] = hash
-                #if len(parameters) < 10000: hashdic[parameters] = hash
                 if not os.path.exists(os.path.join(shared.opts.outdir_init_images, "nai", f"{hash}.png")):
-                    images.save_image(image, path=os.path.join(shared.opts.outdir_init_images,"nai"), basename=None, extension='png', forced_filename=hash, save_to_dirs=False)
-                
+                    images.save_image(image, path=os.path.join(shared.opts.outdir_init_images,"nai"), basename=None, extension='png', forced_filename=hash, save_to_dirs=False, info= self.infotext(p,i), p=p,existing_info=image.info.copy(), pnginfo_section_name= 'parameters')
+
+        
             self.images[i] = image
             self.texts[i] = self.infotext(p,i)
 
