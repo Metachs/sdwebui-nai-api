@@ -301,7 +301,7 @@ class NAIGENScriptBase(scripts.Script):
         p.height = height
         
     def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local,*args):        
-        if not enable: self.disabled=True
+        if not enable and not getattr(p, 'NAI_enable',False): self.disabled=True
         if self.disabled: return 
         
         # if not self.check_api_key():
@@ -357,7 +357,7 @@ class NAIGENScriptBase(scripts.Script):
         
 
     def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local,*args):
-        if not enable: self.disabled=True
+        if not enable and not getattr(p, 'NAI_enable',False): self.disabled=True
         if self.disabled: return 
         isimg2img=self.isimg2img
         do_local_img2img=self.do_local_img2img       
@@ -567,6 +567,7 @@ class NAIGENScriptBase(scripts.Script):
                 p.init_img_resize_mode=3
                 p.use_txt_init_img=True
                 p.save_init_image=True
+                p.resize_mode = 0
                 return
                 
         if not self.use_batch_processing:
@@ -668,7 +669,7 @@ class NAIGENScriptBase(scripts.Script):
             if save_images: 
                 DEBUG_LOG("Save Image:",i)
                 images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix=save_suffix)
-                
+
         for i in range(cur_iter*batch_size, cur_iter*batch_size+batch_size):
             if i >= len(self.images):break
             if self.images[i] is None:
@@ -680,9 +681,9 @@ class NAIGENScriptBase(scripts.Script):
             else:
                 if i == 0 and not self.in_post_process:
                     import modules.paths as paths
-                    with open(os.path.join(paths.data_path, "params.txt"), "w", encoding="utf8") as file:
+                    with open(os.path.join(paths.data_path, "params.txt" if not self.experimental or not isinstance(p, StableDiffusionProcessingImg2Img) else "paramsi2i.txt" ), "w", encoding="utf8") as file:
                         file.write(self.texts[i])
- 
+
  # The following is Only functional because nothing actually uses batching yet
         if self.crop is not None:
             crop = self.crop
