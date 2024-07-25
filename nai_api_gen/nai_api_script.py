@@ -75,11 +75,12 @@ class NAIGENScriptBase(scripts.Script):
         return False
         
     def before_process(self, p, enable,*args):
-        if not enable: return
+        if not getattr(p, 'NAI_enable', enable): self.disabled=True
+        if self.disabled: return
         nai_api_processing.patch_pi()        
         
     def postprocess(self, p, enable,*args):
-        if not enable: return
+        if self.disabled: return
         nai_api_processing.unpatch_pi()
  
     def ui(self, is_img2img):        
@@ -301,7 +302,6 @@ class NAIGENScriptBase(scripts.Script):
         p.height = height
         
     def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local,*args):        
-        if not enable and not getattr(p, 'NAI_enable',False): self.disabled=True
         if self.disabled: return 
         
         # if not self.check_api_key():
@@ -357,7 +357,6 @@ class NAIGENScriptBase(scripts.Script):
         
 
     def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,smea,cfg_rescale,uncond_scale,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,keep_mask_for_local,*args):
-        if not enable and not getattr(p, 'NAI_enable',False): self.disabled=True
         if self.disabled: return 
         isimg2img=self.isimg2img
         do_local_img2img=self.do_local_img2img       
@@ -476,7 +475,7 @@ class NAIGENScriptBase(scripts.Script):
                     hash = hashlib.md5(image.tobytes()).hexdigest()
                     p.extra_generation_params["reference_image_hash"if i==1 else f'reference_image_hash{i}' ] = hash
                     if not os.path.exists(os.path.join(shared.opts.outdir_init_images,f"{hash}.png")):
-                        images.save_image(image.copy(), path=shared.opts.outdir_init_images, basename=None, forced_filename=hash, save_to_dirs=False,existing_info=image.info.copy())
+                        images.save_image(image.copy(), path=shared.opts.outdir_init_images, basename=None, forced_filename=hash, save_to_dirs=False)
 
 
         # Strip extra networks from prompt
@@ -654,7 +653,7 @@ class NAIGENScriptBase(scripts.Script):
                 p.extra_generation_params["nai_gen_hash"] = hash
                 if not p.extra_generation_params.get("txt_init_img_hash",None): p.extra_generation_params["txt_init_img_hash"] = hash
                 if not os.path.exists(os.path.join(shared.opts.outdir_init_images, "nai", f"{hash}.png")):
-                    images.save_image(image, path=os.path.join(shared.opts.outdir_init_images,"nai"), basename=None, extension='png', forced_filename=hash, save_to_dirs=False, info= self.infotext(p,i), p=p,existing_info=image.info.copy(), pnginfo_section_name= 'parameters')
+                    images.save_image(image, path=os.path.join(shared.opts.outdir_init_images,"nai"), basename=None, extension='png', forced_filename=hash, save_to_dirs=False, info= self.infotext(p,i), p=p,pnginfo_section_name= 'parameters')
 
         
             self.images[i] = image
@@ -669,7 +668,7 @@ class NAIGENScriptBase(scripts.Script):
             if save_images: 
                 DEBUG_LOG("Save Image:",i)
                 images.save_image(image, p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix=save_suffix)
-
+                
         for i in range(cur_iter*batch_size, cur_iter*batch_size+batch_size):
             if i >= len(self.images):break
             if self.images[i] is None:
@@ -681,9 +680,9 @@ class NAIGENScriptBase(scripts.Script):
             else:
                 if i == 0 and not self.in_post_process:
                     import modules.paths as paths
-                    with open(os.path.join(paths.data_path, "params.txt" if not self.experimental or not isinstance(p, StableDiffusionProcessingImg2Img) else "paramsi2i.txt" ), "w", encoding="utf8") as file:
+                    with open(os.path.join(paths.data_path, "params.txt"), "w", encoding="utf8") as file:
                         file.write(self.texts[i])
-
+ 
  # The following is Only functional because nothing actually uses batching yet
         if self.crop is not None:
             crop = self.crop
