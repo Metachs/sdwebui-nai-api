@@ -467,7 +467,12 @@ class NAIGENScriptBase(scripts.Script):
                     if txt is not None and "image/png" in txt[0] and len(txt)>1:
                         self.reference_image[-1] = txt[1].strip()
                     else: print(f'Missing/Unknown Reference Image Data URL, sending Raw Image.')
-
+                elif shared.opts.data.get('nai_api_vibe_pre', 'NAI') == 'Scale' and max(image.width,image.height)>448:
+                    size = 448
+                    width = size if image.width>=image.height else size * image.width // image.height
+                    height = size if image.height>=image.width else size * image.height // image.width                    
+                    self.reference_image[-1] = image.resize((width, height),Image.Resampling.LANCZOS)
+                    
                 p.extra_generation_params[f'{PREFIX} reference_information_extracted' if i == 1 else f'{PREFIX} reference_information_extracted{i}' ] = self.reference_information_extracted[-1]
                 p.extra_generation_params[f'{PREFIX} reference_strength' if i == 1 else f'{PREFIX} reference_strength{i}'] = self.reference_strength[-1]
 

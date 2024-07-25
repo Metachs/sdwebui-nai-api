@@ -22,8 +22,7 @@ def on_ui_settings():
         
     addopt('nai_api_vibe_count', shared.OptionInfo(4, "Maximum Number of Vibe Transfer Images, Requires Restart",gr.Slider, {"minimum":  1, "maximum": 32, "step": 1}, section=section))
     
-    addopt('nai_api_vibe_pre', shared.OptionInfo( 'NAI', "Preprocess Vibe Images - NAI: Use NAI's resizing method (Resizes images to 448x448, padding with black). None: Send original images, this changes results as NAI's servers seem to use a different scaling implementation.",gr.Radio, {"choices": ['NAI','None'] }, section=section))
-
+    addopt('nai_api_vibe_pre', shared.OptionInfo( 'NAI', "Preprocess Vibe Images - NAI: Use NAI's resizing method, (Resizes images to 448x448, padding with black, browser-dependendent low quality scaling). None: Send original images, this changes results as NAI's servers seem to use a different scaling implementation. Scale: Scale image to fit inside 448x448 without padding (Lanczos, higher quality than the NAI method).",gr.Radio, {"choices": ['NAI','Scale','None']  }, section=section))
 
     addopt('nai_api_delay', shared.OptionInfo(0, "Minimum Time in seconds between successive API requests, may reduce Too Many Request errors.",gr.Slider, {"minimum":  0, "maximum": 32, "step": 1}, section=section))
     
