@@ -31,14 +31,6 @@ def xyz_setup():
             if hasattr(xy_grid,"_NAI_GRID_OPTIONS"): return
             xy_grid._NAI_GRID_OPTIONS=True
             
-        # model = p.getattr(f'{PREFIX}_'+ 'smea',model)
-        # smea = p.getattr(f'{PREFIX}_'+ 'smea',smea)
-        # sampler = p.getattr(f'{PREFIX}_'+ 'sampler',sampler)
-        # noise_schedule = p.getattr(f'{PREFIX}_'+ 'noise_schedule',noise_schedule)
-        # dynamic_thresholding = p.getattr(f'{PREFIX}_'+ 'dynamic_thresholding',dynamic_thresholding)
-        # uncond_scale = p.getattr(f'{PREFIX}_'+ 'uncond_scale',uncond_scale)
-        # cfg_rescale = p.getattr(f'{PREFIX}_'+ 'cfg_rescale',cfg_rescale)        
-        
             xy_grid.axis_options.append(xy_grid.AxisOption(
                 f'{PREFIX} API',
                 to_bool,
@@ -79,27 +71,23 @@ def xyz_setup():
                 float,
                 xy_grid.apply_field( f'{PREFIX}_'+'cfg_rescale'),
             ))
+            
             xy_grid.axis_options.append(xy_grid.AxisOption(
-                f'{PREFIX} '+'Uncond Scale ',
-                float,
-                xy_grid.apply_field( f'{PREFIX}_'+'uncond_scale'),
+                f'{PREFIX} Noise Schedule',
+                str,
+                xy_grid.apply_field( f'{PREFIX}_'+'noise_schedule'),
+                choices= lambda: ["recommended","exponential","polyexponential","karras","native"]
             ))
+
             xy_grid.axis_options.append(xy_grid.AxisOption(
                 f'{PREFIX} '+'extra_noise ',
                 float,
                 xy_grid.apply_field( f'{PREFIX}_'+'extra_noise'),
             ))
+            
             xy_grid.axis_options.append(xy_grid.AxisOption(
                 f'{PREFIX} '+'add_original_image ',
                 to_bool,
                 xy_grid.apply_field( f'{PREFIX}_'+'add_original_image'),
                 choices= lambda: ["On","Off"]
             ))
-
-
-# def xyz_setup():
-    # try:    
-        # xyz_setup()
-    # except Exception as e:
-        # print(f'Error trying to add XYZ plot options for khr', e)
-
