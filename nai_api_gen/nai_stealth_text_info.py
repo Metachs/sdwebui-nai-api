@@ -81,6 +81,8 @@ def add_stealth_pnginfo(params: ImageSaveParams):
 def process_nai_geninfo(items):
     try:
         import json
+        if items.get('parameters',None) and items.get('parameters') != "None":
+            return items.pop('parameters', None), items
         j = json.loads(items["Comment"])        
         
         from modules import sd_samplers
