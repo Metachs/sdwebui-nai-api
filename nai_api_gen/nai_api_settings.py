@@ -30,9 +30,9 @@ def on_ui_settings():
     addopt('nai_api_delay_rand', shared.OptionInfo(0, "Random amount of time to wait between requests, adds a random value between 0 and n seconds to Minimum Time. May help avoid being incorrectly flagged as a bot.",gr.Slider, {"minimum":  0, "maximum": 32, "step": 1}, section=section))
     
     
-    addopt('nai_api_timeout', shared.OptionInfo(120 , "Request Timeout - Time in seconds to wait before giving up on a request",gr.Slider, {"minimum":  30, "maximum": 360, "step": 5}, section=section))
+    addopt('nai_api_timeout', shared.OptionInfo(120 , "Request Timeout - Time in seconds to wait before giving up on a request",gr.Slider, {"minimum":  30, "maximum": 360, "step": 1}, section=section))
     
-    addopt('nai_api_retry', shared.OptionInfo(2, "Request Retry Attempts - Number of times to retry a failed request before giving up",gr.Slider, {"minimum": 0, "maximum": 3, "step": 1}, section=section))   
+    addopt('nai_api_retry', shared.OptionInfo(2, "Request Retry Attempts - Number of times to retry a failed request before giving up",gr.Slider, {"minimum": 0, "maximum": 12, "step": 1}, section=section))   
     
     
     addopt('nai_api_wait_on_429', shared.OptionInfo(30, "Maximum total time to wait before failing after receiving a 429 error (Too many requests).",gr.Slider, {"minimum": 0, "maximum": 3600, "step": 1}, section=section))

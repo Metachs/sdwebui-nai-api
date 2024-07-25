@@ -18,7 +18,7 @@ NAIv2 = "nai-diffusion-2"
 NAIv3 = "nai-diffusion-3"
 NAIv3f = "nai-diffusion-furry-3"
 
-nai_models = [NAIv3,NAIv2,NAIv1,NAIv1c,NAIv1f,NAIv3f]
+nai_models = [NAIv3,NAIv3f,NAIv2,NAIv1,NAIv1c,NAIv1f]
 
 NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde"]
 noise_schedules = ["exponential","polyexponential","karras","native"]
@@ -33,7 +33,7 @@ def get_headers(key):
         'content-type': "application/json",
     }
 
-TERMINAL_ERRORS = [401,403,404]
+TERMINAL_ERRORS = [401,403,404,-1]
 
 #TODO: Move to js file
 vibe_processing_js ="""
@@ -328,7 +328,7 @@ def prompt_to_a1111(p):
     return out
     
     
-def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6):
+def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6,n_samples = 1):
     def clean(p):
         if type(p) != str: p=f'{p}'
         #TODO: Look for a better way to do this        
@@ -362,8 +362,11 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     uncond_scale = f',"uncond_scale":{uncond_scale}' if isV3 or model == NAIv2 else ""
         
     if qualityToggle:
-        if isV3:
+        if model == NAIv3:
             tags = 'best quality, amazing quality, very aesthetic, absurdres'
+            if tags not in prompt: prompt = f'{prompt}, {tags}'
+        elif model == NAIv3f:
+            tags = '{best quality}, {amazing quality}'
             if tags not in prompt: prompt = f'{prompt}, {tags}'
         elif model == NAIv2:
             tags = 'very aesthetic, best quality, absurdres'
@@ -373,36 +376,38 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             tags = 'masterpiece, best quality'
             if not prompt.startswith(tags):
                 prompt = f'{tags}, {prompt}'    
+                
+        
+    tags=None
+    if ucPreset == 2:
+        if model == NAIv3:
+            tags = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], bad anatomy, bad hands, @_@, mismatched pupils, heart-shaped pupils, glowing eyes'
+        else:
+            ucPreset = 0
+
     if ucPreset == 0:
-        if isV3:
+        if model == NAIv3:
             tags = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]'
+        elif model == NAIv3f:
+            tags = "{{worst quality}}, [displeasing], {unusual pupils}, guide lines, {{unfinished}}, {bad}, url, artist name, {{tall image}}, mosaic, {sketch page}, comic panel, impact (font), [dated], {logo}, ych, {what}, {where is your god now}, {distorted text}, repeated text, {floating head}, {1994}, {widescreen}, absolutely everyone, sequence, {compression artifacts}, hard translated, {cropped}, {commissioner name}, unknown text, high contrast"
         elif model == NAIv2:
             tags = 'lowres, bad, text, error, missing, extra, fewer, cropped, jpeg artifacts, worst quality, bad quality, watermark, displeasing, unfinished, chromatic aberration, scan, scan artifacts'
         else:
             tags = 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-        if tags not in neg: neg = f'{tags}, {neg}'
     
     if ucPreset == 1:
-        if isV3 or model == NAIv2:
+        if model == NAIv3 or model == NAIv2:
             tags = 'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing'
+        elif model == NAIv3f:
+            tags = '{worst quality}, guide lines, unfinished, bad, url, tall image, widescreen, compression artifacts, unknown text'
         else:
             tags = 'lowres, text, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-        if tags not in neg: neg = f'{tags}, {neg}'
-        
-    if ucPreset == 2:
-        if isV3:
-            tags = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], bad anatomy, bad hands, @_@, mismatched pupils, heart-shaped pupils, glowing eyes'
-        elif model == NAIv2:
-            tags = 'lowres, bad, text, error, missing, extra, fewer, cropped, jpeg artifacts, worst quality, bad quality, watermark, displeasing, unfinished, chromatic aberration, scan, scan artifacts'
-            ucPreset = 0
-        else:
-            tags = 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-            ucPreset = 0
-        if tags not in neg: neg = f'{tags}, {neg}'
     
-    if ucPreset == 3 and not isV3:
-        ucPreset = 2
-            
+    if tags and tags not in neg: neg = f'{tags}, {neg}'
+    
+    if ucPreset not in [0,1,2,3]: ucPreset = 3
+    if ucPreset == 3 and model != NAIv3: ucPreset = 2
+
     if isinstance(image, Image.Image):            
         image_byte_array = BytesIO()
         image.save(image_byte_array, format='PNG')
@@ -461,7 +466,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
                     image_byte_array = BytesIO()
                     img.save(image_byte_array, format='PNG')
                     img = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
-                if isinstance(img, str):
+                if isinstance(img, str) and img:
                     rextract = reference_information_extracted[i] if isinstance(reference_information_extracted,list) and len(reference_information_extracted) > i else (reference_information_extracted if reference_information_extracted is not None else 1.0)                    
                     rstrength = reference_strength[i] if isinstance(reference_strength,list) and len(reference_strength) > i else (reference_strength if reference_strength is not None else 0.6)
 
@@ -471,7 +476,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             if imgs is not None: 
                 reference = f',"reference_image_multiple":[{imgs}],"reference_information_extracted_multiple":[{rextracts}],"reference_strength_multiple":[{rstrengths}]'
     
-    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":1{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
+    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":{int(n_samples)}{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
 
 def noise_schedule_selected(sampler,noise_schedule):
     noise_schedule=noise_schedule.lower()
