@@ -110,7 +110,7 @@ class NAIGENScriptBase(scripts.Script):
             with gr.Accordion(label="Advanced", open=False):
                 with gr.Row(variant="compact"):
                     cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='CFG Rescale', value=0.0)
-                    uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.01, label='Uncond Scale', value=1.0)
+                    uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.01, label='Uncond Scale', value=1.0,visible=False)
                     noise_schedule = gr.Dropdown(label="Schedule",value="recommended",choices=["recommended","exponential","polyexponential","karras","native"],type="value")
                     if not is_img2img:
                         inpaint_mode = gr.Dropdown(value=inpaint_default, label=inpaint_label , choices=inpaint_choices, type="index")
