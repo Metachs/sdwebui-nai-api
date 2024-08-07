@@ -83,31 +83,50 @@ def process_nai_geninfo(items):
         import json
         if items.get('parameters',None) and items.get('parameters') != "None":
             return items.pop('parameters', None), items
-        j = json.loads(items["Comment"])        
+        j = json.loads(items["Comment"])
+        geninfo=items["Comment"]
+        
+        if 'req_type' in j:
+            mode = j['req_type']
+            prompt = j.get('prompt', "")
+            emotion =prompt.lower() if prompt and mode == 'emotion' and prompt.lower() in nai_api.augment_emotions else None
+            defry  = j.get('defry', None)
+            geninfo = f'Director Tool: {mode}\n{prompt}\nNegative prompt:\nSteps: 28, NAI augment_mode: {mode}'
+            if defry is not None: geninfo += f", NAI defry: {defry}"
+            if emotion is not None: geninfo += f", NAI emotion: {emotion}"
+            return geninfo,items
+        
+        if "sampler" not in j or "Description" not in j:
+            print("Unrecognized NAI Metadata")
+            print (items["Comment"])
+            return geninfo, items
         
         from modules import sd_samplers
         sampler = sd_samplers.samplers_map.get(j["sampler"].replace('ancestral','a'), None)
         
         prompt = items["Description"]
-        negs = j["uc"]
+        negs = j.get("uc", "")
         
         if shared.opts.data.get('nai_api_convertImportedWeights', True): 
             try:
-                prompt = prompt_to_a1111(prompt)
-                negs = prompt_to_a1111(negs)
+                p = prompt_to_a1111(prompt)
+                n = prompt_to_a1111(negs)
                 if shared.opts.data.get('nai_verbose_logging', False):
                     p2=prompt_to_nai(prompt,True)
                     n2=prompt_to_nai(negs,True)
-                    if p2 != items["Description"]:print(f"Bad conversion:\n'{items['Description']}'\n\n'{p2}'\n\n'{prompt}'")
-                    if n2 != j["uc"] :print(f"Bad conversion:\n'{j['uc']}'\n\n'{n2}'\n\n'{negs}'")                    
+                    if p2 != prompt:print(f"Bad conversion:\n'{prompt}'\n\n'{p2}'\n\n'{p}'")
+                    if n2 != negs :print(f"Bad conversion:\n'{negs}'\n\n'{n2}'\n\n'{n}'")
+                prompt = p
+                negs = n
             except Exception as e:
-                print("Error converting NAI Prompts: ",e)
+                print("Error converting NAI Weights: ",e)
                 
         if sampler is None: sampler = 'DDIM' if 'ddim' in j["sampler"].lower() else 'Euler a'        
         geninfo = f'{prompt}\nNegative prompt: {negs}\nSteps: {j["steps"]}, Sampler: {sampler}, CFG scale: {j["scale"]}, Seed: {j["seed"]}, Size: {j["width"]}x{j["height"]}'
         
     except Exception as e:
-        print (e)
+        print("Error reading NAI Metadata: ",e)
+        print(items["Comment"])
         return geninfo,items
         
     PREFIX = "NAI "    
@@ -267,7 +286,7 @@ def read_info_from_image_stealth(image,force_stealth = False):
         geninfo, items = original_read_info_from_image(image)        
         if geninfo is not None: return geninfo, items        
     except Exception as e:
-        print(e)
+        print('read_info_from_image_stealth',e)
         
     # Stealth PNG Info
     width, height = image.size
@@ -378,8 +397,8 @@ def read_info_from_image_stealth(image,force_stealth = False):
                 if items is not None and items.get("Software", None) == "NovelAI": 
                     return process_nai_geninfo(items)                
             except Exception as e:
-                print (e)
+                print ('read_info_from_image_stealth',e)
         except Exception as e:
-            print (e)
+            print ('read_info_from_image_stealth',e)
             
     return geninfo, items
