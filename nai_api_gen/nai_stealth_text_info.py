@@ -96,7 +96,7 @@ def process_nai_geninfo(items):
             if emotion is not None: geninfo += f", NAI emotion: {emotion}"
             return geninfo,items
         
-        if "sampler" not in j or "Description" not in j:
+        if "sampler" not in j or "Description" not in items:
             print("Unrecognized NAI Metadata")
             print (items["Comment"])
             return geninfo, items
