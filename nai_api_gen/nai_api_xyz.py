@@ -91,3 +91,18 @@ def xyz_setup():
                 xy_grid.apply_field( f'{PREFIX}_'+'add_original_image'),
                 choices= lambda: ["On","Off"]
             ))
+
+            xy_grid.axis_options.append(xy_grid.AxisOption(
+                f'{PREFIX} '+'emotion ',
+                str,
+                xy_grid.apply_field( f'{PREFIX}_'+'emotion'),
+                choices= lambda: nai_api.augment_emotions
+            ))
+
+
+            xy_grid.axis_options.append(xy_grid.AxisOption(
+                f'{PREFIX} '+'defry ',
+                int,
+                xy_grid.apply_field( f'{PREFIX}_'+'defry'),
+                choices= lambda: ["0",'1','2','3','4','5']
+            ))

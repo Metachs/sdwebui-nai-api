@@ -18,10 +18,15 @@ NAIv2 = "nai-diffusion-2"
 NAIv3 = "nai-diffusion-3"
 NAIv3f = "nai-diffusion-furry-3"
 
+NAI_IMAGE_URL = 'https://image.novelai.net/ai/generate-image'
+NAI_AUGMENT_URL = 'https://image.novelai.net/ai/augment-image'
+
 nai_models = [NAIv3,NAIv3f,NAIv2,NAIv1,NAIv1c,NAIv1f]
 
 NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde"]
 noise_schedules = ["exponential","polyexponential","karras","native"]
+augment_modes = ["colorize","emotion","lineart","sketch","declutter","bg-removal"]
+augment_emotions = ['neutral', 'happy', 'sad', 'angry', 'scared', 'surprised', 'tired', 'excited', 'nervous', 'thinking', 'confused', 'shy', 'disgusted', 'smug', 'bored', 'laughing', 'irritated', 'aroused', 'embarrassed', 'worried', 'love', 'determined', 'hurt', 'playful']
 
 noise_schedule_selections = ["recommended","exponential","polyexponential","karras","native"]
 
@@ -49,7 +54,7 @@ async function (source){
 
 	var ctx = canvas.getContext("2d");
 	ctx.fillRect(0,0,canvas.width, canvas.height);
-
+    
 	width = img.width > img.height ? size : img.width * (size / img.height) ;
 	height = img.height > img.width ? size : img.height * (size / img.width) ;
 	ctx.drawImage(img, (size - width) / 2, (size - height) / 2, width, height) ;
@@ -58,39 +63,65 @@ async function (source){
 }
 """
 
-def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, minimum_delay = 0, wait_time_rand = 0):
-    try:
-        r = requests.post('https://image.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout)
-        if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
-            if r.status_code == 429 and wait_on_429 > 0:
-                print(f"Error 429: Too many requests, Retrying")
-                time.sleep(wait_on_429_time)
-                wait_on_429 -= wait_on_429_time
-                attempts += 1
-            else: print(f"Request failed with error code: {r.status_code}, Retrying")
-            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, minimum_delay = minimum_delay, wait_time_rand = wait_time_rand)
-        return r
-    except requests.exceptions.Timeout as e:
-        if attempts > 0: 
-            print(f"Request Timed Out after {timeout} seconds, Retrying")
-            return POST(key, parameters, attempts = attempts - 1 , timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, minimum_delay = minimum_delay, wait_time_rand = wait_time_rand)
-        return e
-    except Exception as e:
-        return e
+def get_timeout(timeout, width, height, steps):
 
-def LOAD(response,parameters):
+    histep = steps > 35
+    
+    midres = width * height > 768*768
+    hires = width * height > 1280*1280
+    
+    if timeout > 60 : return timeout
+    
+    if histep and hires: return 95
+    if hires: return 75
+    
+    if timeout > 30 : return timeout
+    
+    if midres and histep: return 45
+    if midres or histep: return 35
+    
+    return 30
+    
+def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 0,url = 'https://image.novelai.net/ai/generate-image'):
+    try:
+        r = requests.post(url,headers=get_headers(key), data=parameters.encode(),timeout= timeout) 
+    except Exception as e:
+        r = e
+    return CHECK(r, key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count+1,url = url)
+
+def CHECK(r,key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 1,url = 'https://image.novelai.net/ai/generate-image'):
+    if attempt_count > attempts: return r
+    if isinstance(r,requests.exceptions.Timeout):
+        print(f"Request Timed Out after {timeout} seconds, Retrying")
+        return POST(key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count+1,url = url)
+    elif hasattr(r,'status_code') and r.status_code != 200 and r.status_code not in TERMINAL_ERRORS:
+        if r.status_code == 429 and wait_on_429 > 0:
+            print(f"Error 429: Too many requests, Retrying")
+            time.sleep(wait_on_429_time)
+            wait_on_429 -= wait_on_429_time
+            attempt_count -= 1
+        else: 
+            print(f"Request failed with error code: {r.status_code}, Retrying")
+            time.sleep(attempt_count*2-1)
+        return POST(key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count,url = url)
+    return r
+
+def LOAD(response,parameters=""):
     if response is None or not hasattr(response,"status_code") or isinstance(response,Exception):
         if isinstance(response,requests.exceptions.Timeout):
             return None, 408
         return response, -1
-        
     if response.status_code == 200:
-        with ZipFile(BytesIO(response.content)) as zip_file:
-            file_list = zip_file.namelist()
-            image_file_name = file_list[0]
-            image_data = zip_file.read(image_file_name)
-            image = Image.open(BytesIO(image_data))
-            return image, 200
+        try:
+            with ZipFile(BytesIO(response.content)) as zip_file:
+                file_list = zip_file.namelist()
+                images=[]
+                for fn in zip_file.namelist():                    
+                    images.append(Image.open(BytesIO(zip_file.read(fn))))
+                return images, 200
+        except Exception as e:
+            print(f"NAI Image Load Failure - Could not read image File:\n\t{e}")
+            return e, -1             
     else:
         print(f"NAI Image Load Failure - Error Code: {response.status_code}")
         return None, response.status_code
@@ -136,7 +167,7 @@ def subscription_status(key):
 
 def tryfloat(value, default = None):
     try:
-        value = value.strip()
+        if isinstance(value,str): value = value.strip()
         return float(value)
     except Exception as e:
         #print(f"Invalid Float: {value}")
@@ -327,17 +358,39 @@ def prompt_to_a1111(p):
 
     return out
     
+def clean_prompt(p):
+    if type(p) != str: p=f'{p}'
+    #TODO: Look for a better way to do this        
+    p=re.sub("(?<=[^\\\\])\"","\\\"" ,p)
+    p=re.sub("\r?\n"," " ,p)
+    return p
     
+def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
+    prompt=clean_prompt(prompt)
+    if mode == 'emotion' and emotion and emotion in augment_emotions:
+        prompt = f"{emotion.lower()};;{prompt}"
+    if prompt:
+        prompt = f',"prompt":"{prompt}"'
+    else: prompt = ''
+    defry = f',"defry":{int(defry)}'
+    
+    if isinstance(image, Image.Image):            
+        image_byte_array = BytesIO()
+        image.save(image_byte_array, format='PNG')
+        image = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
+        
+    if image: image = f',"image":"{image}"' 
+    else: image = f',"image":""'
+
+    if mode not in ['colorize', 'emotion' ]: 
+        prompt = ''
+        defry = ''
+    return f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{image or ""}{defry or ""}{prompt or ""}}}'
+
+
 def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6,n_samples = 1):
-    def clean(p):
-        if type(p) != str: p=f'{p}'
-        #TODO: Look for a better way to do this        
-        p=re.sub("(?<=[^\\\\])\"","\\\"" ,p)
-        p=re.sub("\r?\n"," " ,p)
-       ## p=re.sub("\s"," " ,p)
-        return p
-    prompt=clean(prompt)
-    neg=clean(neg)
+    prompt=clean_prompt(prompt)
+    neg=clean_prompt(neg)
     
     if type(uncond_scale) != float and type (uncond_scale) != int: uncond_scale = 1.0
     if type(cfg_rescale) != float and type (cfg_rescale) != int: cfg_rescale = 0.0
@@ -493,3 +546,21 @@ def get_set_noise_schedule(sampler,noise_schedule):
     return noise_schedule_selections[0]
     
     
+
+def GrayLevels(image, inlo = 0, inhi = 255, mid = 128, outlo = 0, outhi = 255):
+    from PIL import Image,ImageMath
+    inlo,inhi,mid,outlo,outhi = tryfloat(inlo,0),tryfloat(inhi,255),tryfloat(mid,128),tryfloat(outlo,0),tryfloat(outhi,255)
+    print(inlo,inhi,mid,outlo,outhi)
+    image = image.convert("L")
+    gamma = None
+    if mid < 127:
+        gamma = 1 / min(1 + ( 9 * ( 1 - mid/255 * 2 ) ), 9.99 )
+    elif mid > 128:
+        gamma = 1 / max( 1 - (( mid/255 * 2 ) - 1) , 0.01 )
+    if inlo>0 or inhi < 255:
+        image = ImageMath.eval( f'int((((float(x)/255)-{inlo/255})/({inhi/255}-{inlo/255}))*255)' ,x = image)
+    if gamma is not None:
+        image = ImageMath.eval( f'int((((float(x)/255) ** {gamma}))*255)' ,x = image)
+    if outlo>0 or outhi < 255:
+        image = ImageMath.eval( f'int(((float(x)/255)*{outhi/255-outlo/255}+{outlo/255})*255)' ,x = image)
+    return image.convert("RGB")
