@@ -344,7 +344,7 @@ class NAIGENScriptBase(scripts.Script):
                 
         else: 
             self.augment_mode = ""        
-            self.limit_costs(p)
+            if cost_limiter: self.limit_costs(p)
             self.adjust_resolution(p)
             self.setup_sampler_name(p, sampler)        
 
