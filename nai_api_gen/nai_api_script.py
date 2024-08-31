@@ -108,7 +108,8 @@ class NAIGENScriptBase(scripts.Script):
             with gr.Accordion(label="Advanced", open=False):
                 with gr.Row(variant="compact"):
                     cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='CFG Rescale', value=0.0)
-                    uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.01, label='Uncond Scale', value=1.0,visible=False)
+                    # uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.01, label='Uncond Scale', value=1.0,visible=False)
+                    uncond_scale=gr.Slider(minimum=0, maximum=50, step=1, label='Variety+ On~=19', value=1.0,visible=True)
                     noise_schedule = gr.Dropdown(label="Schedule",value="recommended",choices=["recommended","exponential","polyexponential","karras","native"],type="value")
                     if not is_img2img:
                         inpaint_mode = gr.Dropdown(value=inpaint_default, label=inpaint_label , choices=inpaint_choices, type="index")
@@ -191,7 +192,7 @@ class NAIGENScriptBase(scripts.Script):
             (dynamic_thresholding, f'{PREFIX} dynamic_thresholding'),
             (model, f'{PREFIX} '+ 'model'),
             (smea, f'{PREFIX} '+ 'smea'),
-            (uncond_scale, f'{PREFIX} '+ 'uncond_scale'),
+            (uncond_scale, f'{PREFIX} '+ 'skip_cfg_above_sigma'),
             (cfg_rescale, f'{PREFIX} '+ 'cfg_rescale'),
             
             (nai_denoise_strength, f'{PREFIX} '+ 'nai_denoise_strength'),
@@ -246,12 +247,20 @@ class NAIGENScriptBase(scripts.Script):
             return True, f'[API ERROR] Insufficient points! {points}'
         return True, f'[API OK] Anlas:{points} {"Opus" if opus else ""}'
     
-    def setup_sampler_name(self,p, nai_sampler):
+    def setup_sampler_name(self,p, nai_sampler,noise_schedule):
         if nai_sampler not in nai_api.NAI_SAMPLERS:
             nai_sampler = self.get_nai_sampler(p.sampler_name)
             p.sampler_name = sd_samplers.all_samplers_map.get(nai_sampler.replace('ancestral','a'),None) or p.sampler_name
         self.sampler_name = nai_sampler
-        
+        self.noise_schedule = getattr(p,f'{PREFIX}_'+ 'noise_schedule',noise_schedule)
+        if self.noise_schedule.lower() not in nai_api.noise_schedules:        
+            shared.opts.data.get('nai_api_recommended_schedule', '').split() or ''
+            dic = {}
+            for kv in shared.opts.data.get('nai_api_recommended_schedule', '').lower().split():
+                if ':' in kv: 
+                    k,v,*_ = kv.split(':')
+                    dic[k]=v                    
+            self.noise_schedule = dic.get(self.sampler_name, 'karras')
     
     def get_nai_sampler(self,sampler_name):
         sampler = sd_samplers.all_samplers_map.get(sampler_name)
@@ -346,7 +355,7 @@ class NAIGENScriptBase(scripts.Script):
             self.augment_mode = ""        
             if cost_limiter: self.limit_costs(p)
             self.adjust_resolution(p)
-            self.setup_sampler_name(p, sampler)        
+            self.setup_sampler_name(p, sampler,noise_schedule)        
 
         if not self.isimg2img: do_local_img2img = 0
         self.do_local_img2img=do_local_img2img
@@ -580,6 +589,13 @@ class NAIGENScriptBase(scripts.Script):
         
         p.extra_generation_params[f'{PREFIX} enable'] = True
         
+        if self.mask and self.inpaint_mode == 0 and smea!="None":
+            if p.denoising_strength <= .5:
+                smea="None"
+                self.comment("Disabled SMEA, SMEA does not work with low strength img2img")
+            elif p.denoising_strength < .9:
+                self.comment("WARNING: Using SMEA with img2img at strengths less than .9 will result in blurry images.")
+        
         if self.augment_mode:
             p.extra_generation_params[f'{PREFIX} '+ 'augment_mode'] = augment_mode
             if self.augment_mode in ['colorize','emotion','recolorize']: 
@@ -593,14 +609,14 @@ class NAIGENScriptBase(scripts.Script):
                 p.extra_generation_params[f'{PREFIX} '+ 'reclrLvlLoOut'] = reclrLvlLoOut
                 p.extra_generation_params[f'{PREFIX} '+ 'reclrLvlHiOut'] = reclrLvlHiOut
         else:            
-            if "auto" not in sampler.lower(): p.extra_generation_params[f'{PREFIX} sampler'] = self.sampler_name
-            p.extra_generation_params[f'{PREFIX} noise_schedule'] = noise_schedule
+            if "auto" not in str(sampler).lower(): p.extra_generation_params[f'{PREFIX} sampler'] = self.sampler_name
+            p.extra_generation_params[f'{PREFIX} noise_schedule'] = self.noise_schedule
             p.extra_generation_params[f'{PREFIX} dynamic_thresholding'] = dynamic_thresholding
             p.extra_generation_params[f'{PREFIX} '+ 'model'] = model
             p.extra_generation_params[f'{PREFIX} '+ 'smea'] = smea
             p.extra_generation_params[f'{PREFIX} '+ 'qualityToggle'] = qualityToggle
             p.extra_generation_params[f'{PREFIX} '+ 'ucPreset'] = ucPreset
-            p.extra_generation_params[f'{PREFIX} '+ 'uncond_scale'] = uncond_scale
+            p.extra_generation_params[f'{PREFIX} '+ 'skip_cfg_above_sigma'] = uncond_scale
             p.extra_generation_params[f'{PREFIX} '+ 'cfg_rescale'] = cfg_rescale
             p.extra_generation_params[f'{PREFIX} '+ 'legacy_v3_extend'] = legacy_v3_extend
             
@@ -623,7 +639,9 @@ class NAIGENScriptBase(scripts.Script):
             prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
             if self.augment_mode:
                 return nai_api.AugmentParams('colorize' if self.augment_mode == 'recolorize' else self.augment_mode,image,p.width,p.height,prompt,defry,emotion,seed)
-            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=noise_schedule,sm=smea.lower()=="smea", sm_dyn="dyn" in smea.lower(), cfg_rescale=cfg_rescale,uncond_scale=uncond_scale ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask =self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples)
+
+                
+            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= str(smea).lower() == "smea", sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask =self.mask if self.inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,skip_cfg_above_sigma=uncond_scale)
             
         
         while len(self.images) < p.n_iter * p.batch_size and not shared.state.interrupted:

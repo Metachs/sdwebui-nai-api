@@ -23,7 +23,7 @@ NAI_AUGMENT_URL = 'https://image.novelai.net/ai/augment-image'
 
 nai_models = [NAIv3,NAIv3f,NAIv2,NAIv1,NAIv1c,NAIv1f]
 
-NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde"]
+NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde","k_dpmpp_2m_sde"]
 noise_schedules = ["exponential","polyexponential","karras","native"]
 augment_modes = ["colorize","emotion","lineart","sketch","declutter","bg-removal"]
 augment_emotions = ['neutral', 'happy', 'sad', 'angry', 'scared', 'surprised', 'tired', 'excited', 'nervous', 'thinking', 'confused', 'shy', 'disgusted', 'smug', 'bored', 'laughing', 'irritated', 'aroused', 'embarrassed', 'worried', 'love', 'determined', 'hurt', 'playful']
@@ -362,7 +362,7 @@ def clean_prompt(p):
     if type(p) != str: p=f'{p}'
     #TODO: Look for a better way to do this        
     p=re.sub("(?<=[^\\\\])\"","\\\"" ,p)
-    p=re.sub("\r?\n"," " ,p)
+    p=re.sub("\r?\n|\t"," " ,p)
     return p
     
 def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
@@ -388,7 +388,7 @@ def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
     return f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{image or ""}{defry or ""}{prompt or ""}}}'
 
 
-def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6,n_samples = 1):
+def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6,n_samples = 1,skip_cfg_above_sigma = None):
     prompt=clean_prompt(prompt)
     neg=clean_prompt(neg)
     
@@ -407,12 +407,17 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     else:
         if noise_schedule.lower() not in noise_schedules: 
             if sampler != "k_dpmpp_2m": noise_schedule = "native" 
-            else:  noise_schedule = "exponential"
-        if "_ancestral" in sampler and noise_schedule == "karras": noise_schedule = "native"
+            else: noise_schedule = "karras"
         noise_schedule = f',"noise_schedule":"{noise_schedule}"'
     
-    cfg_rescale = f',"cfg_rescale":{cfg_rescale}' if isV3 else ""
-    uncond_scale = f',"uncond_scale":{uncond_scale}' if isV3 or model == NAIv2 else ""
+    cfg_rescale = f',"cfg_rescale":{float(cfg_rescale)}' if isV3 else ""
+    
+    if skip_cfg_above_sigma and tryfloat(skip_cfg_above_sigma,0) > 0:
+        skip_cfg_above_sigma = f',"skip_cfg_above_sigma":{int(skip_cfg_above_sigma)}'
+    else: skip_cfg_above_sigma=',"skip_cfg_above_sigma":null'
+    
+    # uncond_scale = f',"uncond_scale":{uncond_scale}' if isV3 or model == NAIv2 else ""
+    uncond_scale = ""
         
     if qualityToggle:
         if model == NAIv3:
@@ -529,7 +534,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             if imgs is not None: 
                 reference = f',"reference_image_multiple":[{imgs}],"reference_information_extracted_multiple":[{rextracts}],"reference_strength_multiple":[{rstrengths}]'
     
-    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{scale},"sampler":"{sampler}","steps":{steps},"seed":{int(seed)},"n_samples":{int(n_samples)}{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
+    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{float(scale)},"sampler":"{sampler}","steps":{int(steps)},"seed":{int(seed)},"n_samples":{int(n_samples)}{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{skip_cfg_above_sigma or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
 
 def noise_schedule_selected(sampler,noise_schedule):
     noise_schedule=noise_schedule.lower()

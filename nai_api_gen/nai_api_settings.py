@@ -17,8 +17,9 @@ def on_ui_settings():
     addopt('nai_api_convertImportedWeights', shared.OptionInfo(True, "Convert NAI weights to A1111 when importing NAI prompts.",gr.Checkbox, section=section))
     
     
-    addopt('nai_api_png_info', shared.OptionInfo( 'NAI Only', "Stealth PNG Info - Read/Write Stealth PNG info for NAI images only (required to emulate NAI), or All Images",gr.Radio, {"choices": ['NAI Only', 'All Images'] }, section=section))    
-        
+    addopt('nai_api_recommended_schedule_overrides', shared.OptionInfo('k_dpmpp_2m:exponential k_dpmpp_sde:native', f"Override the recommended Noise Schedule (default is karras, formerly native). Format - 'sampler:schedule' pairs separated by spaces. Samplers - [{', '.join(nai_api.NAI_SAMPLERS)}] Schedules - [{', '.join(nai_api.noise_schedules)}] .",gr.Textbox,section=section))    
+    
+    addopt('nai_api_png_info', shared.OptionInfo( 'NAI Only', "Stealth PNG Info - Write Stealth PNG info for NAI images only (required to emulate NAI), or All Images",gr.Radio, {"choices": ['NAI Only', 'All Images'] }, section=section))
         
     addopt('nai_api_vibe_count', shared.OptionInfo(4, "Maximum Number of Vibe Transfer Images, Requires Restart",gr.Slider, {"minimum":  1, "maximum": 32, "step": 1}, section=section))
     
