@@ -73,6 +73,12 @@ def xyz_setup():
             ))
             
             xy_grid.axis_options.append(xy_grid.AxisOption(
+                f'{PREFIX} '+'Variety+',
+                float,
+                xy_grid.apply_field( f'{PREFIX}_'+'skip_cfg_above_sigma'),
+            ))
+            
+            xy_grid.axis_options.append(xy_grid.AxisOption(
                 f'{PREFIX} Noise Schedule',
                 str,
                 xy_grid.apply_field( f'{PREFIX}_'+'noise_schedule'),
@@ -86,23 +92,91 @@ def xyz_setup():
             ))
             
             xy_grid.axis_options.append(xy_grid.AxisOption(
-                f'{PREFIX} '+'add_original_image ',
+                f'{PREFIX} '+'add_original_image',
                 to_bool,
                 xy_grid.apply_field( f'{PREFIX}_'+'add_original_image'),
                 choices= lambda: ["On","Off"]
             ))
 
             xy_grid.axis_options.append(xy_grid.AxisOption(
-                f'{PREFIX} '+'emotion ',
+                f'{PREFIX} '+'Emotion',
                 str,
                 xy_grid.apply_field( f'{PREFIX}_'+'emotion'),
-                choices= lambda: nai_api.augment_emotions
+                choices= lambda: nai_api.augment_emotions,
+                format_value = lambda p,o,x: f'Emotion: {x}'
             ))
 
 
             xy_grid.axis_options.append(xy_grid.AxisOption(
-                f'{PREFIX} '+'defry ',
+                f'{PREFIX} '+'Defry',
                 int,
                 xy_grid.apply_field( f'{PREFIX}_'+'defry'),
-                choices= lambda: ["0",'1','2','3','4','5']
+                choices= lambda: ["0",'1','2','3','4','5'],
+                format_value = lambda p,o,x: f'Defry: {x}'
             ))
+
+            xy_grid.axis_options.append(xy_grid.AxisOption(
+                f'{PREFIX} '+'Vibe <Index> <IE/RS/On/Off> <Value>',
+                str,
+                parse_vb_field,
+                format_value = lambda p,o,x: f'Vibe: {x}'
+            ))
+
+
+def tryint(value, default = None):
+    try:
+        value = value.strip()
+        return int(value)
+    except Exception as e:
+        pass
+    try:
+        return int(float(value))
+    except Exception as e:
+        return default
+
+
+def tryfloat(value, default = None):
+    try:
+        value = value.strip()
+        return float(value)
+    except Exception as e:
+        return default
+        
+        
+def parse_vb_field(p, x, xs):        
+    for s in x.split(';' if ';' in x else ','):
+        s = s.strip()
+        if not s: continue
+        sp = s.split()
+        if len(sp) < 2:
+            print("Invalid Vibe Command",s )
+        idx = tryint(sp[0])
+        if idx is None: 
+            idx = 1
+            cmd = sp[0]
+            vals = sp[1]
+        else:
+            cmd = sp[1]
+            vals = sp[2] if len(sp) > 2 else None
+        val = tryfloat(vals)
+        cmd = cmd.lower().strip()
+        field = None
+        if cmd in ['on','off']:
+            field = 'VibeOn'
+            val = cmd == 'on'
+        elif cmd in ['ie','e','ext','extract']:
+            field = 'VibeExtract'
+        elif cmd in ['s','rs','str','strength']:
+            field = 'VibeStrength'
+        elif cmd in ['m','mode']:
+            field = 'VibeMode'
+            val = vals
+        elif cmd in ['c','color']:
+            field = 'VibeColor'
+            val = vals
+        
+        if idx>0 and field and val is not None:
+            field = f'{PREFIX}_{field}_{idx}'
+            # print("VB XYX", cmd, field, val)
+            setattr(p, field, val)
+        else: print("Invalid Vibe Command",s )
