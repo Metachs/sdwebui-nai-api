@@ -509,9 +509,15 @@ class NAIGENScriptBase(scripts.Script):
         self.reference_strength = []
         
         for i in range(1,1+self.vibe_count):
+        
             image = args[-(0 * self.vibe_count + i)]
-            self.reference_information_extracted.append(args[-(1 * self.vibe_count + i)])
-            self.reference_strength.append(args[-(2 * self.vibe_count + i)])            
+            vie = getattr(p, f'{PREFIX}_VibeExtract_{i}', args[-(1 * self.vibe_count + i)])
+            vstr = getattr(p, f'{PREFIX}_VibeStrength_{i}', args[-(2 * self.vibe_count + i)])            
+            self.reference_information_extracted.append(vie)
+            self.reference_strength.append(vstr)
+            
+            if hasattr(p,f'{PREFIX}_VibeOn_{i}') and not getattr(p,f'{PREFIX}_VibeOn_{i}'): image = None
+            
             self.reference_image.append(image)
             if image is not None:
                 if shared.opts.data.get('nai_api_vibe_pre', 'NAI') == 'NAI':
@@ -526,10 +532,10 @@ class NAIGENScriptBase(scripts.Script):
                     height = size if image.height>=image.width else size * image.height // image.width                    
                     self.reference_image[-1] = image.resize((width, height),Image.Resampling.LANCZOS)
 
-                p.extra_generation_params[f'{PREFIX} reference_information_extracted' if i == 1 else f'{PREFIX} reference_information_extracted{i}' ] = self.reference_information_extracted[-1]
-                p.extra_generation_params[f'{PREFIX} reference_strength' if i == 1 else f'{PREFIX} reference_strength{i}'] = self.reference_strength[-1]
+                p.extra_generation_params[f'{PREFIX} Vibe IE {i}' ] = self.reference_information_extracted[-1]
+                p.extra_generation_params[f'{PREFIX} Vibe Strength {i}'] = self.reference_strength[-1]
                 if shared.opts.data.get('save_init_img',False):
-                    p.extra_generation_params["reference_image_hash"if i==1 else f'reference_image_hash{i}' ] = self.save_init_img(image)
+                    p.extra_generation_params[f'{PREFIX} Vibe Hash {i}'] = self.save_init_img(image)
         try:
             # Strip extra networks from prompt
             p.all_prompts, _ = extra_networks.parse_prompts(p.all_prompts)
@@ -573,7 +579,7 @@ class NAIGENScriptBase(scripts.Script):
             sampler = self.sampler_name
         noise_schedule = getattr(p,f'{PREFIX}_'+ 'noise_schedule',noise_schedule)
         dynamic_thresholding = getattr(p,f'{PREFIX}_'+ 'dynamic_thresholding',dynamic_thresholding)
-        uncond_scale = getattr(p,f'{PREFIX}_'+ 'uncond_scale',uncond_scale)
+        uncond_scale = getattr(p,f'{PREFIX}_'+ 'skip_cfg_above_sigma',uncond_scale)
         cfg_rescale = getattr(p,f'{PREFIX}_'+ 'cfg_rescale',cfg_rescale)        
         extra_noise = getattr(p,f'{PREFIX}_'+ 'extra_noise',extra_noise)        
         add_original_image = getattr(p,f'{PREFIX}_'+ 'add_original_image',add_original_image)        
