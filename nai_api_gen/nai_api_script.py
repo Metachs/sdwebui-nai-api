@@ -594,14 +594,7 @@ class NAIGENScriptBase(scripts.Script):
             smea = "None" # Disable SMEA during post  
         
         p.extra_generation_params[f'{PREFIX} enable'] = True
-        
-        if self.mask and self.inpaint_mode == 0 and smea!="None":
-            if p.denoising_strength <= .5:
-                smea="None"
-                self.comment("Disabled SMEA, SMEA does not work with low strength img2img")
-            elif p.denoising_strength < .9:
-                self.comment("WARNING: Using SMEA with img2img at strengths less than .9 will result in blurry images.")
-        
+
         if self.augment_mode:
             p.extra_generation_params[f'{PREFIX} '+ 'augment_mode'] = augment_mode
             if self.augment_mode in ['colorize','emotion','recolorize']: 
