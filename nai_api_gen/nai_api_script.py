@@ -99,9 +99,11 @@ class NAIGENScriptBase(scripts.Script):
                 model = gr.Dropdown(label= "Model",value=nai_api.NAIv3,choices=nai_api.nai_models,type="value",show_label=False)
                 sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto",*nai_api.NAI_SAMPLERS],type="value",show_label=False)
             with gr.Row(variant="compact"):
-                dynamic_thresholding = gr.Checkbox(value=False, label='Decrisper (Dynamic Thresholding)',min_width=64)
-                variety = gr.Checkbox(value=False, label='Variety+',min_width=64, elem_id = f"{elempfx}_nai_variety")
+                noise_schedule = gr.Dropdown(label="Schedule",value="recommended",choices=["recommended","exponential","polyexponential","karras","native"],type="value")
                 smea = gr.Radio(label="SMEA",value="Off",choices=["SMEA","DYN","Off"],type="value",show_label=False)
+            with gr.Row(variant="compact"):
+                dynamic_thresholding = gr.Checkbox(value=False, label='Decrisper',min_width=64)
+                variety = gr.Checkbox(value=False, label='Variety+',min_width=64, elem_id = f"{elempfx}_nai_variety")
             with gr.Row(variant="compact",visible = is_img2img):
                 extra_noise=gr.Slider(minimum=0.0, maximum=1.0 ,step=0.01, label='Noise', value=0.0)
                 add_original_image = gr.Checkbox(value=True, label='Inpaint: Overlay Image')            
@@ -109,10 +111,9 @@ class NAIGENScriptBase(scripts.Script):
                 with gr.Row(variant="compact"):
                     cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='CFG Rescale', value=0.0)
                     # uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.01, label='Uncond Scale', value=1.0,visible=False)
-                    skip_cfg_above_sigma=gr.Slider(minimum=0, maximum=50, step=1, label='skip_cfg_above_sigma (Manual Variety+ On=19 @1216x832)', value=0 ,visible=True, elem_id = f"{elempfx}_nai_cfg_skip")
-                    noise_schedule = gr.Dropdown(label="Schedule",value="recommended",choices=["recommended","exponential","polyexponential","karras","native"],type="value")
-                    if not is_img2img:
-                        inpaint_mode = gr.Dropdown(value=inpaint_mode_default, label=inpaint_label , choices=inpaint_mode_choices, type="index")
+                skip_cfg_above_sigma=gr.Slider(minimum=0, maximum=50, step=1, label='skip_cfg_above_sigma (Manual Variety+ On=19 @1216x832)', value=0 ,visible=True, elem_id = f"{elempfx}_nai_cfg_skip")
+                if not is_img2img:
+                    inpaint_mode = gr.Dropdown(value=inpaint_mode_default, label=inpaint_label , choices=inpaint_mode_choices, type="index")
 
             def dovibefields(idx):
                 with gr.Row(variant="compact"):
