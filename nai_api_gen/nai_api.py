@@ -10,6 +10,7 @@ import base64
 import time
 import requests
 import random
+import json
 
 NAIv1 = "nai-diffusion"
 NAIv1c = "safe-diffusion"
@@ -39,6 +40,7 @@ def get_headers(key):
     }
 
 TERMINAL_ERRORS = [401,403,404,-1]
+TERMINAL_ERROR_MESSAGES = ["Error decoding request:","Error verifying request:"]
 
 #TODO: Move to js file
 vibe_processing_js ="""
@@ -90,41 +92,55 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_4
     return CHECK(r, key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count+1,url = url)
 
 def CHECK(r,key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 1,url = 'https://image.novelai.net/ai/generate-image'):
-    if attempt_count > attempts: return r
+    r.message = ""
+    r.files = []
     if isinstance(r,requests.exceptions.Timeout):
+        r.status_code = 408
+        if attempt_count > attempts: return r
         print(f"Request Timed Out after {timeout} seconds, Retrying")
         return POST(key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count+1,url = url)
-    elif hasattr(r,'status_code') and r.status_code != 200 and r.status_code not in TERMINAL_ERRORS:
+    elif not hasattr(r,'status_code'): 
+        r.status_code = -1
+        r.message = 'Unhandled Exception'
+        return r
+    elif r.status_code != 200:
+        try: r.message = f"{r.status_code} Error: {json.loads(r.text).get('message')}" 
+        except: r.message = f"{r.status_code} Error"
+        print(r.message)
+        if r.status_code in TERMINAL_ERRORS or any(tem in r.message for tem in TERMINAL_ERROR_MESSAGES): 
+            return r
+        if attempt_count > attempts: return r
         if r.status_code == 429 and wait_on_429 > 0:
-            print(f"Error 429: Too many requests, Retrying")
+            print(f"Error 429: {r.message}, waiting {wait_on_429}s and retrying.")
             time.sleep(wait_on_429_time)
             wait_on_429 -= wait_on_429_time
             attempt_count -= 1
         else: 
-            print(f"Request failed with error code: {r.status_code}, Retrying")
+            print(f"Error {r.status_code}: {r.message}, Retrying")
             time.sleep(attempt_count*2-1)
         return POST(key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count,url = url)
-    return r
-
-def LOAD(response,parameters=""):
-    if response is None or not hasattr(response,"status_code") or isinstance(response,Exception):
-        if isinstance(response,requests.exceptions.Timeout):
-            return None, 408
-        return response, -1
-    if response.status_code == 200:
-        try:
-            with ZipFile(BytesIO(response.content)) as zip_file:
-                file_list = zip_file.namelist()
-                images=[]
-                for fn in zip_file.namelist():                    
-                    images.append(Image.open(BytesIO(zip_file.read(fn))))
-                return images, 200
-        except Exception as e:
-            print(f"NAI Image Load Failure - Could not read image File:\n\t{e}")
-            return e, -1             
     else:
-        print(f"NAI Image Load Failure - Error Code: {response.status_code}")
-        return None, response.status_code
+        try:
+            with ZipFile(BytesIO(r.content)) as zip_file:
+                for fn in zip_file.namelist():
+                    r.files.append(Image.open(BytesIO(zip_file.read(fn))))
+                return r
+        except Exception as e:
+            print(f"NAI Image Load Failure - Could not read image File")
+            e.status_code = -1
+            return e
+    
+def GPOST( params , attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5,url = 'https://image.novelai.net/ai/generate-image'):
+    import grequests
+    rs=[]
+    for key, parameters in params:
+        rs.append(grequests.post('https://image.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout))        
+    rs = grequests.map(rs, exception_handler = lambda r,e:e)
+    
+    for ri in range(len(rs)):
+        key,parameters = params[ri]
+        rs[ri] = CHECK(rs[ri],key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time,url = url)
+    return rs
 
 def GET(key, attempts = 5, timeout = 30):          
     try:
@@ -163,7 +179,6 @@ def subscription_status(key):
         return response.status_code, unlimited, points, max
     else: print (response.status_code)
     return response.status_code,False,0,0
-
 
 def tryfloat(value, default = None):
     try:
@@ -357,12 +372,15 @@ def prompt_to_a1111(p):
             if c == ux: out+=f':{weight(True,s[3]):.5g})'
 
     return out
-    
+
+def get_skip_cfg_above_sigma(width,height): 
+    return 19 * math.pow( width * height / (832 * 1216) , 0.5)
+
 def clean_prompt(p):
     if type(p) != str: p=f'{p}'
     #TODO: Look for a better way to do this        
     p=re.sub("(?<=[^\\\\])\"","\\\"" ,p)
-    p=re.sub("\r?\n|\t"," " ,p)
+    p=re.sub("\r?\n|\t"," ",p)
     return p
     
 def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
@@ -374,7 +392,9 @@ def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
     else: prompt = ''
     defry = f',"defry":{int(defry)}'
     
-    if isinstance(image, Image.Image):            
+    if isinstance(image, Image.Image):
+        # print(image.mode, image.width, image.height)
+        # image.save(r"D:\AI\SDout\ImageWut_"+f"{time.time()}.png")
         image_byte_array = BytesIO()
         image.save(image_byte_array, format='PNG')
         image = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
@@ -385,10 +405,12 @@ def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
     if mode not in ['colorize', 'emotion' ]: 
         prompt = ''
         defry = ''
-    return f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{image or ""}{defry or ""}{prompt or ""}}}'
+    seed = f',"seed":{int(seed)}' if seed != -1 else ''
+    # with open(r"D:\AI\SDout\ara_"+f"{time.time()}.txt", "w", encoding="utf8") as file:
+        # file.write(f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{defry or ""}{prompt or ""}{seed or ""}}}')
+    return f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{image or ""}{defry or ""}{prompt or ""}{seed or ""}}}'
 
-
-def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6,n_samples = 1,skip_cfg_above_sigma = None):
+def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6,n_samples = 1,variety = False,skip_cfg_above_sigma = None):
     prompt=clean_prompt(prompt)
     neg=clean_prompt(neg)
     
@@ -412,9 +434,11 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     
     cfg_rescale = f',"cfg_rescale":{float(cfg_rescale)}' if isV3 else ""
     
-    if skip_cfg_above_sigma and tryfloat(skip_cfg_above_sigma,0) > 0:
-        skip_cfg_above_sigma = f',"skip_cfg_above_sigma":{int(skip_cfg_above_sigma)}'
-    else: skip_cfg_above_sigma=',"skip_cfg_above_sigma":null'
+    if skip_cfg_above_sigma and tryfloat(skip_cfg_above_sigma,0):
+        skip_cfg_above_sigma = f',"skip_cfg_above_sigma":{float(skip_cfg_above_sigma)}'
+    elif variety: 
+        skip_cfg_above_sigma = f',"skip_cfg_above_sigma":{get_skip_cfg_above_sigma(width, height)}'        
+    else: skip_cfg_above_sigma=',"skip_cfg_above_sigma":null'    
     
     # uncond_scale = f',"uncond_scale":{uncond_scale}' if isV3 or model == NAIv2 else ""
     uncond_scale = ""
@@ -466,7 +490,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     if ucPreset not in [0,1,2,3]: ucPreset = 3
     if ucPreset == 3 and model != NAIv3: ucPreset = 2
 
-    if isinstance(image, Image.Image):            
+    if isinstance(image, Image.Image):
+        # image.save(r"D:\AI\SDout\ImageWut_"+f"{time.time()}.png")
         image_byte_array = BytesIO()
         image.save(image_byte_array, format='PNG')
         image = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
@@ -478,6 +503,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         noise = f',"noise":{noise or 0}'
         extra_noise_seed = f',"extra_noise_seed":{extra_noise_seed or seed}'        
         if isinstance(mask, Image.Image):
+            # mask.save(r"D:\AI\SDout\MaskWut_"+f"{time.time()}.png")
             image_byte_array = BytesIO()
             mask.save(image_byte_array, format="PNG")
             mask = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
@@ -521,10 +547,13 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             for i in range(len(reference_image)):
                 img = reference_image[i]
                 if isinstance(img, Image.Image):
+                    # img.save(r"D:\AI\SDout\Ref "+f"{i} - STR={reference_strength[i]} IE={reference_information_extracted[i]}.png", format='PNG')             
                     image_byte_array = BytesIO()
                     img.save(image_byte_array, format='PNG')
                     img = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
                 if isinstance(img, str) and img:
+                    # nimage = Image.open(BytesIO(base64.decodebytes(bytes(img, "utf-8"))))
+                    # nimage.save(r"D:\AI\SDout\Ref "+f"{i} - {reference_strength[i]}STR {reference_information_extracted[i]} IE.png", format='PNG')                    
                     rextract = reference_information_extracted[i] if isinstance(reference_information_extracted,list) and len(reference_information_extracted) > i else (reference_information_extracted if reference_information_extracted is not None else 1.0)                    
                     rstrength = reference_strength[i] if isinstance(reference_strength,list) and len(reference_strength) > i else (reference_strength if reference_strength is not None else 0.6)
 
@@ -535,22 +564,6 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
                 reference = f',"reference_image_multiple":[{imgs}],"reference_information_extracted_multiple":[{rextracts}],"reference_strength_multiple":[{rstrengths}]'
     
     return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{float(scale)},"sampler":"{sampler}","steps":{int(steps)},"seed":{int(seed)},"n_samples":{int(n_samples)}{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{skip_cfg_above_sigma or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
-
-def noise_schedule_selected(sampler,noise_schedule):
-    noise_schedule=noise_schedule.lower()
-    sampler=sampler.lower()
-    
-    if noise_schedule not in noise_schedule or sampler == "ddim": return False
-    
-    if sampler == "k_dpmpp_2m": return noise_schedule != "exponential"                 
-    return noise_schedule != "native" 
-
-def get_set_noise_schedule(sampler,noise_schedule):
-    if sampler == "ddim": return ""
-    if noise_schedule_selected(sampler, noise_schedule): return noise_schedule
-    return noise_schedule_selections[0]
-    
-    
 
 def GrayLevels(image, inlo = 0, inhi = 255, mid = 128, outlo = 0, outhi = 255):
     from PIL import Image,ImageMath

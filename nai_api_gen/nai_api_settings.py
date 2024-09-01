@@ -17,9 +17,11 @@ def on_ui_settings():
     addopt('nai_api_convertImportedWeights', shared.OptionInfo(True, "Convert NAI weights to A1111 when importing NAI prompts.",gr.Checkbox, section=section))
     
     
-    addopt('nai_api_recommended_schedule_overrides', shared.OptionInfo('k_dpmpp_2m:exponential k_dpmpp_sde:native', f"Override the recommended Noise Schedule (default is karras, formerly native). Format - 'sampler:schedule' pairs separated by spaces. Samplers - [{', '.join(nai_api.NAI_SAMPLERS)}] Schedules - [{', '.join(nai_api.noise_schedules)}] .",gr.Textbox,section=section))    
+    addopt('nai_api_recommended_schedule_overrides', shared.OptionInfo('k_dpmpp_2m:exponential k_dpmpp_sde:native  k_dpmpp_2s_ancestral:native', f"Override the recommended Noise Schedule (default is karras, formerly native). Format - 'sampler:schedule' pairs separated by spaces. Samplers - [{', '.join(nai_api.NAI_SAMPLERS)}] Schedules - [{', '.join(nai_api.noise_schedules)}] .",gr.Textbox,section=section))    
     
     addopt('nai_api_png_info', shared.OptionInfo( 'NAI Only', "Stealth PNG Info - Write Stealth PNG info for NAI images only (required to emulate NAI), or All Images",gr.Radio, {"choices": ['NAI Only', 'All Images'] }, section=section))
+            
+    addopt('nai_api_png_info_read', shared.OptionInfo(True, "Read Stealth PNG Info from images",gr.Checkbox, section=section))
         
     addopt('nai_api_vibe_count', shared.OptionInfo(4, "Maximum Number of Vibe Transfer Images, Requires Restart",gr.Slider, {"minimum":  1, "maximum": 32, "step": 1}, section=section))
     
@@ -58,6 +60,28 @@ def on_ui_settings():
  
     # addopt('nai_api_vibe_size', shared.OptionInfo(448, "Vibe Image Downscaling size (Default: 448)",gr.Slider, {"minimum": 256, "maximum": 1024, "step": 64}, section=section))
         
+def get_recommended_schedule(sampler_name):
+    dic = {}
+    for kv in shared.opts.nai_api_recommended_schedule_overrides.lower().split():
+        if ':' in kv: 
+            k,v,*_ = kv.split(':')
+            dic[k]=v       
+    return dic.get(sampler_name, 'karras')
+
+def noise_schedule_selected(sampler,noise_schedule):
+    noise_schedule=noise_schedule.lower()
+    sampler=sampler.lower()
+    
+    if noise_schedule not in nai_api.noise_schedules or sampler == "ddim": return False
+    
+    return noise_schedule != get_recommended_schedule(sampler)
+
+def get_set_noise_schedule(sampler,noise_schedule):
+    if sampler == "ddim": return ""
+    if noise_schedule_selected(sampler, noise_schedule): return noise_schedule
+    return nai_api.noise_schedule_selections[0]
+    get_recommended_schedule
+
 def DEBUG_LOG(*args,**kwargs): 
     if shared.opts.data.get('nai_verbose_logging', False): 
         print(*args,**kwargs)

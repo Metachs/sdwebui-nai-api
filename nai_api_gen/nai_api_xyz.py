@@ -74,6 +74,13 @@ def xyz_setup():
             
             xy_grid.axis_options.append(xy_grid.AxisOption(
                 f'{PREFIX} '+'Variety+',
+                to_bool,
+                xy_grid.apply_field( f'{PREFIX}_'+'variety'),
+                choices= lambda: ["On","Off"]
+            ))
+            
+            xy_grid.axis_options.append(xy_grid.AxisOption(
+                f'{PREFIX} '+'skip_cfg_above_sigma',
                 float,
                 xy_grid.apply_field( f'{PREFIX}_'+'skip_cfg_above_sigma'),
             ))

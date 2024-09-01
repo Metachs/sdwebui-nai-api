@@ -5,7 +5,7 @@
 from modules import script_callbacks, shared, generation_parameters_copypaste
 from modules.script_callbacks import ImageSaveParams
 import gradio as gr
-from modules import images
+from modules import images,errors
 from PIL import Image
 from gradio import processing_utils
 import PIL
@@ -13,7 +13,8 @@ import warnings
 import gzip
 import json
 
-from nai_api_gen.nai_api import get_set_noise_schedule, prompt_to_a1111, prompt_to_nai
+from nai_api_gen.nai_api_settings import get_set_noise_schedule
+from nai_api_gen.nai_api import prompt_to_a1111, prompt_to_nai,tryfloat,get_skip_cfg_above_sigma
 from nai_api_gen import nai_api
     
 original_read_info_from_image = None
@@ -77,13 +78,18 @@ def add_stealth_pnginfo(params: ImageSaveParams):
         return
     if nai_api_png_info == 'NAI Only': return
     add_data(params, 'alpha', True)
-
+    
 def process_nai_geninfo(items):
     try:
         import json
-        if items.get('parameters',None) and items.get('parameters') != "None":
-            return items.pop('parameters', None), items
         j = json.loads(items["Comment"])
+        if items.get('parameters',None) and len(items.get('parameters'))>10:
+            params = items.get('parameters', None)
+            if 'sampler' in j and 'NAI sampler:' not in params: 
+                params+=f", NAI sampler: {j['sampler']}"
+            if 'noise_schedule' in j and 'NAI noise_schedule:' not in params: 
+                params+=f", NAI noise_schedule: {j['noise_schedule']}"        
+            return params, items
         geninfo=items["Comment"]
         
         if 'req_type' in j:
@@ -114,18 +120,18 @@ def process_nai_geninfo(items):
                 if shared.opts.data.get('nai_verbose_logging', False):
                     p2=prompt_to_nai(prompt,True)
                     n2=prompt_to_nai(negs,True)
-                    if p2 != prompt:print(f"Bad conversion:\n'{prompt}'\n\n'{p2}'\n\n'{p}'")
-                    if n2 != negs :print(f"Bad conversion:\n'{negs}'\n\n'{n2}'\n\n'{n}'")
+                    if p2 != prompt: print(f"Bad conversion:\n'{prompt}'\n\n'{p2}'\n\n'{p}'")
+                    if n2 != negs: print(f"Bad conversion:\n'{negs}'\n\n'{n2}'\n\n'{n}'")
                 prompt = p
                 negs = n
             except Exception as e:
-                print("Error converting NAI Weights: ",e)
+                errors.display(e,'Converting NAI Weights')
                 
         if sampler is None: sampler = 'DDIM' if 'ddim' in j["sampler"].lower() else 'Euler a'        
         geninfo = f'{prompt}\nNegative prompt: {negs}\nSteps: {j["steps"]}, Sampler: {sampler}, CFG scale: {j["scale"]}, Seed: {j["seed"]}, Size: {j["width"]}x{j["height"]}'
         
     except Exception as e:
-        print("Error reading NAI Metadata: ",e)
+        errors.display(e,'Reading NAI Metadata')
         print(items["Comment"])
         return geninfo,items
         
@@ -152,6 +158,14 @@ def process_nai_geninfo(items):
     add('cfg_rescale')
     add('sampler',value="Auto")
     
+    skip_cfg_above_sigma = tryfloat(j.get('skip_cfg_above_sigma', None))
+    if skip_cfg_above_sigma:
+        epsilon = .0001
+        if math.abs(get_skip_cfg_above_sigma(tryfloat(j["width"]), tryfloat(j["height"]))) < epsilon:
+            add('variety', value = True)
+        else: 
+            add('skip_cfg_above_sigma')
+        
     noise_schedule = get_set_noise_schedule(j["sampler"], j.get("noise_schedule", ""))
     if noise_schedule: add("noise_schedule", value = noise_schedule )
     
@@ -278,21 +292,29 @@ def read_info_from_image_stealth(image,force_stealth = False):
     # Standard Metadata
     try:    
         if image.info is not None and image.info.get("Software", None) == "NovelAI":
-            if 'parameters' in image.info and image.info['parameters'] and image.info['parameters']!="None":
+            if image.info.get('parameters',None) and len(image.info['parameters']) > 10:
                 # Image has both A1111 and NAI metadata, remove NAI Software entry so A1111 reads it's own metadata.
                 image.info.pop("Software")
-                return original_read_info_from_image(image)            
+                geninfo, items = original_read_info_from_image(image)
+                items["Software"] = "NovelAI"
+                items['parameters'] = image.info['parameters']
+                return process_nai_geninfo(items)
             return process_nai_geninfo(image.info)            
         geninfo, items = original_read_info_from_image(image)        
         if geninfo is not None: return geninfo, items        
     except Exception as e:
-        print('read_info_from_image_stealth',e)
+        errors.display(e,'read_info_from_image_stealth')
+        geninfo, items = None, {}
         
+    if not shared.opts.data.get("nai_api_png_info_read", True): return geninfo, items
     # Stealth PNG Info
     width, height = image.size
     pixels = image.load()
 
     has_alpha = True if image.mode == 'RGBA' else False
+    
+    if not has_alpha: return geninfo,items
+    
     mode = None
     compressed = False
     binary_data = ''
@@ -397,8 +419,9 @@ def read_info_from_image_stealth(image,force_stealth = False):
                 if items is not None and items.get("Software", None) == "NovelAI": 
                     return process_nai_geninfo(items)                
             except Exception as e:
-                print ('read_info_from_image_stealth',e)
+                errors.display(e,'read_info_from_image_stealth')
         except Exception as e:
-            print ('read_info_from_image_stealth',e)
+            errors.display(e,'read_info_from_image_stealth')
             
     return geninfo, items
+
