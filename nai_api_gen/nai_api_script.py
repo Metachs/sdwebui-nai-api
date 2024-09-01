@@ -32,7 +32,6 @@ import cv2
 from nai_api_gen.nai_api_settings import DEBUG_LOG,get_recommended_schedule
 
 PREFIX = 'NAI'
-hashdic = {}    
 do_local_img2img_modes = ["One Pass: NAI Img2Img/Inpaint", "Two Pass: NAI Txt2Img > Local Img2Img (Ignore Source Image)","Two Pass: NAI Img2Img/Inpaint > Local Img2Img"]
 inpaint_mode_default = "Infill (No Denoise Strength)"
 inpaint_mode_choices= [inpaint_mode_default,"Img2Img (Use Denoise Strength)" ]
@@ -96,11 +95,11 @@ class NAIGENScriptBase(scripts.Script):
                 if is_img2img:
                     inpaint_mode = gr.Dropdown(value=inpaint_mode_default, label=inpaint_label , choices=inpaint_mode_choices, type="index")
             with gr.Row(variant="compact"):
-                model = gr.Dropdown(label= "Model",value=nai_api.NAIv3,choices=nai_api.nai_models,type="value",show_label=False)
-                sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto",*nai_api.NAI_SAMPLERS],type="value",show_label=False)
+                model = gr.Dropdown(label= "Model",value=nai_api.NAIv3,choices=nai_api.nai_models,type="value",show_label=True)
+                sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto",*nai_api.NAI_SAMPLERS],type="value",show_label=True)
             with gr.Row(variant="compact"):
                 noise_schedule = gr.Dropdown(label="Schedule",value="recommended",choices=["recommended","exponential","polyexponential","karras","native"],type="value")
-                smea = gr.Radio(label="SMEA",value="Off",choices=["SMEA","DYN","Off"],type="value",show_label=False)
+                smea = gr.Radio(label="SMEA",value="Off",choices=["SMEA","DYN","Off"],type="value",show_label=True)
             with gr.Row(variant="compact"):
                 dynamic_thresholding = gr.Checkbox(value=False, label='Decrisper',min_width=64)
                 variety = gr.Checkbox(value=False, label='Variety+',min_width=64, elem_id = f"{elempfx}_nai_variety")
@@ -111,17 +110,16 @@ class NAIGENScriptBase(scripts.Script):
                 with gr.Row(variant="compact"):
                     cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='CFG Rescale', value=0.0)
                     # uncond_scale=gr.Slider(minimum=0.0, maximum=1.5, step=0.01, label='Uncond Scale', value=1.0,visible=False)
-                skip_cfg_above_sigma=gr.Slider(minimum=0, maximum=50, step=1, label='skip_cfg_above_sigma (Manual Variety+ On=19 @1216x832)', value=0 ,visible=True, elem_id = f"{elempfx}_nai_cfg_skip")
+                skip_cfg_above_sigma=gr.Slider(minimum=0.0, maximum=100.0, step=1.0, label='skip_cfg_above_sigma (Manual Variety+ On=19 @1216x832)', value=0.0 ,visible=True, elem_id = f"{elempfx}_nai_cfg_skip")
                 if not is_img2img:
-                    inpaint_mode = gr.Dropdown(value=inpaint_mode_default, label=inpaint_label , choices=inpaint_mode_choices, type="index")
-
+                    inpaint_mode = gr.Dropdown(value=inpaint_mode_default, label=inpaint_label , choices=inpaint_mode_choices, type="index")                    
             def dovibefields(idx):
                 with gr.Row(variant="compact"):
                     reference_image = gr.Image(label=f"Reference Image {idx}", elem_id=f"reference_image_{idx}", show_label=False, source="upload", interactive=True, type="pil", tool="editor", image_mode="RGBA",min_width=164)
                     with gr.Column(min_width=64):
                         reference_information_extracted=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label=f'Info Extracted {idx}', value=1.0,min_width=64)
                         reference_strength=gr.Slider(minimum=-1.0, maximum=1.0, step=0.01, label=f'Reference Strength {idx}', value=0.6,min_width=64)
-                                    
+
                 reference_image_text=gr.Textbox(label=f"Reference Image Text Data {idx}", visible = False, value = "")
 
                 reference_image.change( fn=None, _js= nai_api.vibe_processing_js, inputs=[reference_image], show_progress=False,outputs = [reference_image_text])
@@ -136,7 +134,7 @@ class NAIGENScriptBase(scripts.Script):
                     for fi in range(len(fields)):
                         if fi >= len(vibe_fields): vibe_fields.append([])
                         vibe_fields[fi].append(fields[fi])
-                    if idx+1<self.vibe_count: dovibe(idx+1)       
+                    if idx+1<self.vibe_count: dovibe(idx+1)
                     
             dovibe(0)
             vibe_fields = [f for field in vibe_fields[::-1] for f in field[::-1]]
@@ -160,7 +158,7 @@ class NAIGENScriptBase(scripts.Script):
                 isdfp = m in ['emotion','colorize','recolorize']
                 return [ gr.update(visible = isdfp), gr.update(visible = m == 'emotion'), gr.update(visible = isdfp) , gr.update(visible = m =='recolorize'), gr.update(visible = cl and m == 'bg-removal') ]
 
-            with gr.Accordion(label='Local Second Pass Overrides: Ignored if 0', open=False , visible = is_img2img):                    
+            with gr.Accordion(label='Local Second Pass Overrides: Ignored if 0', open=False , visible = is_img2img):
                 with gr.Row(variant="compact"):
                     nai_resolution_scale=gr.Slider(minimum=0.0, maximum=4.0, step=0.05, label='Scale', value=1.0)
                     nai_cfg=gr.Slider(minimum=0.0, maximum=30, step=0.05, label='CFG', value=0.0)
@@ -248,7 +246,7 @@ class NAIGENScriptBase(scripts.Script):
             return True, f'[API ERROR] Insufficient points! {points}'
         return True, f'[API OK] Anlas:{points} {"Opus" if opus else ""}'
     
-    def setup_sampler_name(self,p, nai_sampler,noise_schedule='recommended'):            
+    def setup_sampler_name(self,p, nai_sampler,noise_schedule='recommended'):
         noise_schedule_recommended = nai_sampler not in nai_api.NAI_SAMPLERS
         if noise_schedule_recommended:
             sampler = sd_samplers.all_samplers_map.get(p.sampler_name)
@@ -683,7 +681,7 @@ class NAIGENScriptBase(scripts.Script):
             if self.augment_mode:
                 return nai_api.AugmentParams('colorize' if self.augment_mode == 'recolorize' else self.augment_mode,image,p.width,p.height,prompt,defry,emotion,seed)
                 
-            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= str(smea).lower() == "smea", sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask =self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma)
+            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask =self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma)
         
         while len(self.images) < p.n_iter * p.batch_size and not shared.state.interrupted:
             DEBUG_LOG("Loading Images: ",len(self.images) // p.batch_size,p.n_iter, p.batch_size)
