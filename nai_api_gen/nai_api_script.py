@@ -273,9 +273,7 @@ class NAIGENScriptBase(scripts.Script):
                 if ':' in kv: 
                     k,v,*_ = kv.split(':')
                     dic[k]=v       
-            print(dic)
             self.noise_schedule = dic.get(self.sampler_name, 'karras')
-            print(self.sampler_name,self.noise_schedule)
             
     def initialize(self):
         self.failed= False
@@ -460,7 +458,6 @@ class NAIGENScriptBase(scripts.Script):
                     mask = mask.convert('L')
                     min_mask = mask
                 else: 
-                    # images.save_image(mask,shared.opts.outdir_img2img_samples,"",p.seed,"initial_mask")
                     self.add_original_image=False
                     adjust_mask = getattr(p,f'{PREFIX}_'+ 'adjust_mask',0)                    
                     blur_outside_mask = getattr(p,f'{PREFIX}_'+ 'blur_outside_mask',False)
@@ -476,7 +473,6 @@ class NAIGENScriptBase(scripts.Script):
                     mask_fill_blur = getattr(p,f'{PREFIX}_'+ 'mask_fill_blur',0)
                     if mask_fill_blur > 0:
                         min_mask = blur_out(min_mask, min(mask_fill_blur, adjust_mask))
-                    # images.save_image(min_mask.copy(),shared.opts.outdir_img2img_samples,"",p.seed,"min_mask")
                     
                     if p.mask_blur > 0: 
                         overlay_mask = maskblur(mask, p.mask_blur) if not blur_outside_mask else blur_out(mask, p.mask_blur)
@@ -484,10 +480,6 @@ class NAIGENScriptBase(scripts.Script):
                     
                     mask = mask.convert('L')
                     self.mask_for_overlay = overlay_mask
-                    
-                    # images.save_image(clip(mask.reduce(8),1) if shared.opts.nai_mask_reduce else mask,shared.opts.outdir_img2img_samples,"",p.seed,"NAI_mask")                    
-                    # images.save_image(min_mask,shared.opts.outdir_img2img_samples,"",p.seed,"min_mask")
-                    # images.save_image(overlay_mask,shared.opts.outdir_img2img_samples,"",p.seed,"overlay_mask")
 
                 init_masked=[]               
 
@@ -505,8 +497,6 @@ class NAIGENScriptBase(scripts.Script):
                     DEBUG_LOG(image.width, image.height, p.width, p.height, mask.width, mask.height, overlay_mask.width, overlay_mask.height)
                     image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(overlay_mask.convert('L')))
                     init_masked.append(image_masked.convert('RGBA'))
-                    # images.save_image(image.convert('RGBA'),shared.opts.outdir_img2img_samples,"",p.seed,"init_image")
-                    # images.save_image(image_masked.convert('RGBA'),shared.opts.outdir_img2img_samples,"",p.seed,"image_masked")
                 
                 if crop: image = images.resize_image(2, image.crop(crop), p.width, p.height)
  
@@ -514,8 +504,6 @@ class NAIGENScriptBase(scripts.Script):
                     image.paste(masking.fill(image, min_mask).convert("RGBA").convert("RGBa"), mask=min_mask.convert('L'))
 
                 init_images.append(image)
-                # images.save_image(image.convert('RGBA'),shared.opts.outdir_img2img_samples,"",p.seed,"input_image")                        
-            # if shared.opts.nai_mask_reduce and mask: mask=clip(mask.reduce(8),32)
             
             self.mask = mask
             self.overlay = self.inpaint_mode == 1 or getattr(p,"inpaint_full_res",False) or alt_masking and add_original_image
