@@ -137,8 +137,6 @@ class NAIGENScriptBase(scripts.Script):
                     if idx+1<self.vibe_count: dovibe(idx+1)
                     
             dovibe(0)
-            vibe_fields = [f for field in vibe_fields[::-1] for f in field[::-1]]
-            self.vibe_field_count = len(vibe_fields)
             with gr.Accordion(label='Director Tools', elem_id = f"nai_aug_{elempfx}", open=False , visible = is_img2img):                   
                 with gr.Row(variant="compact", elem_id = f"nai_aug1_{elempfx}"):
                     augment_mode = gr.Dropdown(label="Augment Mode ",value="None",choices=["None",'recolorize',*nai_api.augment_modes])
@@ -209,6 +207,38 @@ class NAIGENScriptBase(scripts.Script):
             (reclrLvlHiOut, f'{PREFIX} '+ 'reclrLvlHiOut'),
             (variety, f'{PREFIX} '+ 'variety'),
         ]
+
+        def subvibeget(text,i,old_name):
+            def key(i):
+                return f'{PREFIX} {text} {i+1}'
+            def keyold(i):
+                if i==0: return f'{PREFIX} {old_name}'
+                return f'{PREFIX} {old_name}{i+1}'
+            def func(d):
+                if key(i) in d: return d[key(i)]
+                if keyold(i) in d: return d[keyold(i)]
+                if i != 0 and f'reference_image_hash{i+1}' in d and key(0) in d:
+                    return d[key(0)]
+                return None
+            return func
+
+        def restorefunc(i):                        
+            def restore(d,name,oldname):
+                hash = d[name] if name in d else d[oldname] if oldname in d else None
+                if not hash: return None
+                imgp = os.path.join(shared.opts.outdir_init_images, f"{hash}.png")
+                return imgp if os.path.exists(imgp) else None
+            def func(x):
+                return gr.update(value = restore(x, f'{PREFIX} Vibe Hash {i+1}',"reference_image_hash" if i==0 else f'reference_image_hash{i+1}'))
+            return func
+
+        for i in range(self.vibe_count):        
+            if shared.opts.outdir_init_images and os.path.exists(shared.opts.outdir_init_images):
+                self.infotext_fields.append((vibe_fields[0][i],restorefunc(i)))
+            self.infotext_fields.append((vibe_fields[1][i],subvibeget('Vibe IE',i,'reference_information_extracted')))
+            self.infotext_fields.append((vibe_fields[2][i],subvibeget('Vibe Strength',i,'reference_strength')))
+        vibe_fields = [f for field in vibe_fields[::-1] for f in field[::-1]]
+        self.vibe_field_count = len(vibe_fields)
         
         self.paste_field_names = []
         for _, field_name in self.infotext_fields:
@@ -853,3 +883,4 @@ def blur_out(image, amount):
     b = maskblur(b, amount)            
     image = ImageChops.lighter(image,b)
     return image
+    
