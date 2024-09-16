@@ -73,9 +73,9 @@ class NAIGENScriptBase(scripts.Script):
         return False
         
     def before_process(self, p, enable,*args):
-        if not getattr(p, 'NAI_enable', enable): self.disabled=True
+        self.disabled = not getattr(p, 'NAI_enable', enable)
         if self.disabled: return
-        nai_api_processing.patch_pi()        
+        nai_api_processing.patch_pi()
         
     def postprocess(self, p, enable,*args):
         if self.disabled: return
