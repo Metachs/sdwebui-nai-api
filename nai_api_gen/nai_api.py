@@ -94,11 +94,13 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_4
 def CHECK(r,key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 1,url = 'https://image.novelai.net/ai/generate-image'):
     r.message = ""
     r.files = []
+    r.retry_count = attempt_count - 1
     if isinstance(r,requests.exceptions.Timeout):
         r.status_code = 408
+        r.message = f"Request Timeout."        
         if attempt_count > attempts: return r
         print(f"Request Timed Out after {timeout} seconds, Retrying")
-        return POST(key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count+1,url = url)
+        return POST(key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count,url = url)
     elif not hasattr(r,'status_code'): 
         r.status_code = -1
         r.message = 'Unhandled Exception'
@@ -109,12 +111,12 @@ def CHECK(r,key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_o
         print(r.message)
         if r.status_code in TERMINAL_ERRORS or any(tem in r.message for tem in TERMINAL_ERROR_MESSAGES): 
             return r
-        if attempt_count > attempts: return r
         if r.status_code == 429 and wait_on_429 > 0:
             print(f"Error 429: {r.message}, waiting {wait_on_429}s and retrying.")
             time.sleep(wait_on_429_time)
             wait_on_429 -= wait_on_429_time
-            attempt_count -= 1
+            if attempt_count > 1: attempt_count -= 1 # Concurrent Request Failure only counts as a single failure
+        elif attempt_count > attempts: return r
         else: 
             print(f"Error {r.status_code}: {r.message}, Retrying")
             time.sleep(attempt_count*2-1)
@@ -410,7 +412,7 @@ def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
         # file.write(f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{defry or ""}{prompt or ""}{seed or ""}}}')
     return f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{image or ""}{defry or ""}{prompt or ""}{seed or ""}}}'
 
-def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6,n_samples = 1,variety = False,skip_cfg_above_sigma = None):
+def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6,n_samples = 1,variety = False,skip_cfg_above_sigma = None,deliberate_euler_ancestral_bug=None,prefer_brownian=None):
     prompt=clean_prompt(prompt)
     neg=clean_prompt(neg)
     
@@ -430,8 +432,17 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         if noise_schedule.lower() not in noise_schedules: 
             if sampler != "k_dpmpp_2m": noise_schedule = "native" 
             else: noise_schedule = "karras"
+            
+        if sampler == "k_euler_ancestral" and noise_schedule.lower() != "native":
+            deliberate_euler_ancestral_bug = False if deliberate_euler_ancestral_bug is None else deliberate_euler_ancestral_bug
+            prefer_brownian = True if prefer_brownian is None else prefer_brownian
         noise_schedule = f',"noise_schedule":"{noise_schedule}"'
-    
+
+        if deliberate_euler_ancestral_bug is not None:
+            noise_schedule+=f',"deliberate_euler_ancestral_bug":{"true" if deliberate_euler_ancestral_bug else "false"}'
+        if prefer_brownian is not None:
+            noise_schedule+=f',"prefer_brownian":{"true" if prefer_brownian else "false"}'
+
     cfg_rescale = f',"cfg_rescale":{float(cfg_rescale)}' if isV3 else ""
     
     if skip_cfg_above_sigma and tryfloat(skip_cfg_above_sigma,0):
@@ -563,7 +574,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             if imgs is not None: 
                 reference = f',"reference_image_multiple":[{imgs}],"reference_information_extracted_multiple":[{rextracts}],"reference_strength_multiple":[{rstrengths}]'
     
-    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":1,"width":{int(width)},"height":{int(height)},"scale":{float(scale)},"sampler":"{sampler}","steps":{int(steps)},"seed":{int(seed)},"n_samples":{int(n_samples)}{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{skip_cfg_above_sigma or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
+    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":3,"width":{int(width)},"height":{int(height)},"scale":{float(scale)},"sampler":"{sampler}","steps":{int(steps)},"seed":{int(seed)},"n_samples":{int(n_samples)}{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{skip_cfg_above_sigma or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
 
 def GrayLevels(image, inlo = 0, inhi = 255, mid = 128, outlo = 0, outhi = 255):
     from PIL import Image,ImageMath

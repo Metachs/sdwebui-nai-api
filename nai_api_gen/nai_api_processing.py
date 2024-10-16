@@ -77,8 +77,8 @@ def post_process_images(p,script,is_post):
 
 
 def process_images_patched(p):
-    unpatch_pi()
     DEBUG_LOG("process_images_patched.")
+    unpatch_pi()
     
     def FindScript(p):
         if p.scripts is None:
@@ -111,8 +111,7 @@ def process_images_patched(p):
     
     DEBUG_LOG("Script args.",args)
     if args is None: return modules.processing.process_images_pre_patch_4_nai(p)
-        
-    script.initialize()        
+    script.initialize()
     script.nai_configuration(p, *args)
     DEBUG_LOG("script.failed.",script.failed)    
     DEBUG_LOG("script.disabled.",script.disabled)    

@@ -72,7 +72,7 @@ class NAIGENScriptBase(scripts.Script):
     def show(self, is_img2img):
         return False
         
-    def before_process(self, p, enable,*args):
+    def before_process(self, p, enable, *args):
         self.disabled = not getattr(p, 'NAI_enable', enable)
         if self.disabled: return
         nai_api_processing.patch_pi()
@@ -81,7 +81,7 @@ class NAIGENScriptBase(scripts.Script):
         if self.disabled: return
         nai_api_processing.unpatch_pi()
  
-    def ui(self, is_img2img):        
+    def ui(self, is_img2img):
         inpaint_label = "NAI Inpainting"
         elempfx = 'img2img'if is_img2img else 'txt2img'
         with gr.Accordion(label=self.NAISCRIPTNAME, open=False):
@@ -172,6 +172,10 @@ class NAIGENScriptBase(scripts.Script):
                     nai_post = gr.Checkbox(value=True, label="Use NAI for Inpainting with ADetailer")
                     disable_smea_in_post = gr.Checkbox(value=True, label="Disable SMEA for Post/Adetailer")
                     legacy_v3_extend = gr.Checkbox(value=False, label="Legacy v3 (Disable Token Fix)")
+                    
+                    deliberate_euler_ancestral_bug = gr.Dropdown(value="Default", label="Deliberate EulerA Bug",choices=["Default","True","False"])
+                    prefer_brownian = gr.Dropdown(value="Default", label="Prefer Brownian",choices=["Default","True","False"])
+                    
         def on_enable(e,h):
             if e and not self.api_connected: return self.connect_api()
             return e,h
@@ -206,6 +210,8 @@ class NAIGENScriptBase(scripts.Script):
             (reclrLvlLoOut, f'{PREFIX} '+ 'reclrLvlLoOut'),
             (reclrLvlHiOut, f'{PREFIX} '+ 'reclrLvlHiOut'),
             (variety, f'{PREFIX} '+ 'variety'),
+            (deliberate_euler_ancestral_bug, f'{PREFIX} eulera_bug'),
+            (prefer_brownian, f'{PREFIX} prefer_brownian'),
         ]
 
         def subvibeget(text,i,old_name):
@@ -244,7 +250,7 @@ class NAIGENScriptBase(scripts.Script):
         for _, field_name in self.infotext_fields:
             self.paste_field_names.append(field_name)
             
-        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,keep_mask_for_local,*vibe_fields]
+        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,keep_mask_for_local,*vibe_fields]
 
     def skip_checks(self):
         return shared.opts.data.get('nai_api_skip_checks', False)
@@ -277,15 +283,15 @@ class NAIGENScriptBase(scripts.Script):
         return True, f'[API OK] Anlas:{points} {"Opus" if opus else ""}'
     
     def setup_sampler_name(self,p, nai_sampler,noise_schedule='recommended'):
-        noise_schedule_recommended = nai_sampler not in nai_api.NAI_SAMPLERS
-        if noise_schedule_recommended:
+        noise_schedule_recommended = noise_schedule not in nai_api.noise_schedules
+        if nai_sampler not in nai_api.NAI_SAMPLERS:
             sampler = sd_samplers.all_samplers_map.get(p.sampler_name)
             if sampler.name in ["DDIM"]: nai_sampler = "ddim_v3"
             else:            
-                for n in nai_api.NAI_SAMPLERS:
-                    n = n.replace('ancestral','a')
-                    if n in sampler.aliases or n +'_ka' in sampler.aliases:
-                        nai_sampler = n
+                for ns in nai_api.NAI_SAMPLERS:
+                    nsl = ns.lower().replace('ancestral','a')
+                    if nsl in sampler.aliases or nsl +'_ka' in sampler.aliases:
+                        nai_sampler = ns
                         if 'karras' in sampler.name.lower(): 
                             noise_schedule = 'karras'
                             noise_schedule_recommended = True
@@ -306,9 +312,9 @@ class NAIGENScriptBase(scripts.Script):
             self.noise_schedule = dic.get(self.sampler_name, 'karras')
             
     def initialize(self):
+        DEBUG_LOG(f'initialize')        
         self.failed= False
         self.failure =""
-        self.disabled= False
         self.images=[]
         self.texts=[]
         self.fragments = []
@@ -371,8 +377,9 @@ class NAIGENScriptBase(scripts.Script):
         p.width = width
         p.height = height
         
-    def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,keep_mask_for_local,*args):
+    def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,keep_mask_for_local,*args):
         if self.disabled: return        
+        DEBUG_LOG(f'nai_configuration')        
         self.do_nai_post=nai_post            
         self.cost_limiter = cost_limiter
         
@@ -416,7 +423,7 @@ class NAIGENScriptBase(scripts.Script):
         self.model = getattr(p,f'{PREFIX}_'+ 'model',model)
         
         if do_local_img2img== 1 or do_local_img2img == 2:
-            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,keep_mask_for_local)
+            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,keep_mask_for_local)
         else:
             p.disable_extra_networks=True
 
@@ -431,7 +438,7 @@ class NAIGENScriptBase(scripts.Script):
         p.denoising_strength = self.strength
         p.resize_mode = self.resize_mode
         
-    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,keep_mask_for_local,*args):    
+    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,keep_mask_for_local,*args):    
         if nai_resolution_scale> 0:
             p.width = int(p.width * nai_resolution_scale)
         p.height = int(p.height * nai_resolution_scale)
@@ -448,7 +455,7 @@ class NAIGENScriptBase(scripts.Script):
         images.save_image(image.copy(), path=shared.opts.outdir_init_images, basename=None, forced_filename=hash, save_to_dirs=False)
         return hash
 
-    def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,keep_mask_for_local,*args):
+    def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,keep_mask_for_local,*args):
         if self.disabled: return
         isimg2img=self.isimg2img
         do_local_img2img=self.do_local_img2img       
@@ -614,10 +621,10 @@ class NAIGENScriptBase(scripts.Script):
         return create_infotext(p, p.all_prompts, p.all_seeds, p.all_subseeds, None, iteration, batch)
 
 
-    def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,keep_mask_for_local,*args):
+    def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,keep_mask_for_local,*args):
         if self.disabled or p.nai_processed is not None: return 
         DEBUG_LOG("nai_generate_images")
-        DEBUG_LOG(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,keep_mask_for_local,*args)
+        DEBUG_LOG(enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,keep_mask_for_local)
         
         isimg2img=self.isimg2img
         do_local_img2img=self.do_local_img2img
@@ -634,6 +641,9 @@ class NAIGENScriptBase(scripts.Script):
         extra_noise = getattr(p,f'{PREFIX}_'+ 'extra_noise',extra_noise)        
         add_original_image = getattr(p,f'{PREFIX}_'+ 'add_original_image',add_original_image)        
         extra_noise = max(getattr(p,"extra_noise",0) , extra_noise)
+        
+        
+        
         
         defry = getattr(p,f'{PREFIX}_'+ 'defry',defry)        
         emotion = getattr(p,f'{PREFIX}_'+ 'emotion',emotion)
@@ -678,9 +688,18 @@ class NAIGENScriptBase(scripts.Script):
                 if nai_steps!= 0: p.extra_generation_params[f'{PREFIX} '+ 'nai_steps'] = nai_steps
                 if nai_cfg!= 0: p.extra_generation_params[f'{PREFIX} '+ 'nai_cfg'] = nai_cfg
                 if nai_resolution_scale!= 1: p.extra_generation_params[f'{PREFIX} '+ 'nai_resolution_scale'] = nai_resolution_scale
-                
             if isimg2img:
                 p.extra_generation_params[f'{PREFIX} '+ 'extra_noise'] = extra_noise                
+            
+            if prefer_brownian.lower() in ['true', 'false']:            
+                prefer_brownian= prefer_brownian.lower() == "true"
+                p.extra_generation_params[f'{PREFIX} prefer_brownian'] = prefer_brownian            
+            else: prefer_brownian=None
+            
+            if deliberate_euler_ancestral_bug.lower() in ['true', 'false']:            
+                deliberate_euler_ancestral_bug = deliberate_euler_ancestral_bug.lower() == "true"
+                p.extra_generation_params[f'{PREFIX} eulera_bug'] = deliberate_euler_ancestral_bug            
+            else: deliberate_euler_ancestral_bug=None
         
         def getparams(i,n_samples=1):
             seed =int(p.all_seeds[i])
@@ -699,7 +718,7 @@ class NAIGENScriptBase(scripts.Script):
             if self.augment_mode:
                 return nai_api.AugmentParams('colorize' if self.augment_mode == 'recolorize' else self.augment_mode,image,p.width,p.height,prompt,defry,emotion,seed)
                 
-            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask =self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma)
+            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask =self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma,deliberate_euler_ancestral_bug=deliberate_euler_ancestral_bug,prefer_brownian=prefer_brownian)
         
         while len(self.images) < p.n_iter * p.batch_size and not shared.state.interrupted:
             DEBUG_LOG("Loading Images: ",len(self.images) // p.batch_size,p.n_iter, p.batch_size)
@@ -722,7 +741,7 @@ class NAIGENScriptBase(scripts.Script):
             self.all_prompts = p.all_prompts.copy()
             self.all_negative_prompts = p.all_negative_prompts.copy()
             
-            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,keep_mask_for_local)
+            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,keep_mask_for_local)
                 
             p.init_images = self.images.copy()
             self.include_nai_init_images_in_results=True
@@ -763,17 +782,37 @@ class NAIGENScriptBase(scripts.Script):
         self.last_request_time = time.time()
         errors= False
         msg = f"Request Completed in {self.last_request_time - start:.2f}s"
+        gentime = 0
+        retry_count = 0
         for i, result in enumerate(results):   
             if result.status_code == 200:
                 if result.files and isinstance(result.files[0], Image.Image):
-                    gentime = nai_api.tryfloat(result.files[0].info.get('Generation time',None),None)
-                    if gentime: msg = f'{msg} Generation time: {gentime:.2f}s'
+                    gentime = max(gentime, nai_api.tryfloat(result.files[0].info.get('Generation time',0),0))
             else:
                 err = f'Request {idx + i + 1}/{p.n_iter*p.batch_size}: {result.message}'                
                 self.comment(p,err)
                 if result.status_code < 0: errors.display(result, "NAI Image Request", full_traceback= True)
                 errors = True
-        if not errors: self.comment(p,msg)
+            retry_count += result.retry_count
+                
+        if retry_count>0: msg = f'{msg} Retries: {retry_count:.2f}s'
+        if gentime>0: msg = f'{msg} Generation time: {gentime:.2f}s'
+        if gentime>0 and retry_count==0:
+            if not hasattr(self,'times'):
+                self.waits=[]
+                self.times=[]
+                self.rats=[]
+                self.gents=[]
+            self.rats.append((self.last_request_time - start -gentime)/(self.last_request_time - start))
+            self.gents.append(gentime)
+            self.waits.append(self.last_request_time - start -gentime)
+            self.times.append(self.last_request_time - start)
+            msg = f'{msg} Wait Time: {self.last_request_time - start -gentime:.2f}s'
+            msg = f'{msg} Average Gen: {sum(self.gents)/len(self.gents):.2f}s'
+            msg = f'{msg} Average Total: {sum(self.times)/len(self.times):.2f}s'
+            msg = f'{msg} Average Wait: {sum(self.waits)/len(self.waits):.2f}s'
+            msg = f'{msg} Ratio: {sum(self.rats)/len(self.rats):.2f}'
+        if not errors and idx == 0: self.comment(p,msg)
         return errors
         
     def load_image(self, p, i, parameters, batch_size = 1):    
