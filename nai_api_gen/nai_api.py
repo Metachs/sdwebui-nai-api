@@ -18,11 +18,12 @@ NAIv1f = "nai-diffusion-furry"
 NAIv2 = "nai-diffusion-2"
 NAIv3 = "nai-diffusion-3"
 NAIv3f = "nai-diffusion-furry-3"
+NAIv4cp = "nai-diffusion-4-curated-preview"
 
 NAI_IMAGE_URL = 'https://image.novelai.net/ai/generate-image'
 NAI_AUGMENT_URL = 'https://image.novelai.net/ai/augment-image'
 
-nai_models = [NAIv3,NAIv3f,NAIv2,NAIv1,NAIv1c,NAIv1f]
+nai_models = [NAIv4cp, NAIv3,NAIv3f,NAIv2,NAIv1,NAIv1c,NAIv1f]
 
 NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde","k_dpmpp_2m_sde"]
 noise_schedules = ["exponential","polyexponential","karras","native"]
@@ -465,6 +466,13 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             tags = 'very aesthetic, best quality, absurdres'
             if not prompt.startswith(tags):
                 prompt = f'{tags}, {prompt}'
+        elif model == NAIv4cp:
+            tags = 'best quality, very aesthetic, absurdres'
+            if 'CHAR:' in prompt:
+                char_index = prompt.find('CHAR:')
+                prompt = prompt[:char_index] + ', ' + tags + ', ' + prompt[char_index:]
+            else:
+                prompt = f'{prompt}, {tags}'
         else:
             tags = 'masterpiece, best quality'
             if not prompt.startswith(tags):
@@ -481,6 +489,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     if ucPreset == 0:
         if model == NAIv3:
             tags = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]'
+        elif model == NAIv4cp:
+            tags = 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, logo, dated, signature, multiple views, gigantic breasts'
         elif model == NAIv3f:
             tags = "{{worst quality}}, [displeasing], {unusual pupils}, guide lines, {{unfinished}}, {bad}, url, artist name, {{tall image}}, mosaic, {sketch page}, comic panel, impact (font), [dated], {logo}, ych, {what}, {where is your god now}, {distorted text}, repeated text, {floating head}, {1994}, {widescreen}, absolutely everyone, sequence, {compression artifacts}, hard translated, {cropped}, {commissioner name}, unknown text, high contrast"
         elif model == NAIv2:
@@ -493,10 +503,20 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             tags = 'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing'
         elif model == NAIv3f:
             tags = '{worst quality}, guide lines, unfinished, bad, url, tall image, widescreen, compression artifacts, unknown text'
+        elif model == NAIv4cp:
+            tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, logo, dated, signature'
         else:
             tags = 'lowres, text, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
     
-    if tags and tags not in neg: neg = f'{tags}, {neg}'
+    if tags and tags not in neg:
+        if model == NAIv4cp:
+            if 'CHAR:' in neg:
+                char_index = neg.find('CHAR:')
+                neg = neg[:char_index] + ', ' + tags + ', ' + neg[char_index:]
+            else:
+                neg = f'{tags}, {neg}'
+        else:
+            neg = f'{tags}, {neg}'
     
     if ucPreset not in [0,1,2,3]: ucPreset = 3
     if ucPreset == 3 and model != NAIv3: ucPreset = 2
@@ -574,7 +594,79 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             if imgs is not None: 
                 reference = f',"reference_image_multiple":[{imgs}],"reference_information_extracted_multiple":[{rextracts}],"reference_strength_multiple":[{rstrengths}]'
     
-    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":3,"width":{int(width)},"height":{int(height)},"scale":{float(scale)},"sampler":"{sampler}","steps":{int(steps)},"seed":{int(seed)},"n_samples":{int(n_samples)}{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{skip_cfg_above_sigma or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
+    # new params for NAIv4 curated preview
+    characterPrompts = None
+    v4_prompt = None
+    v4_negative_prompt = None
+
+    if model == NAIv4cp:
+        basePrompt = prompt.split("CHAR:")[0]
+        baseNeg = neg.split("CHAR:")[0]
+        characterPrompts = []
+        characterNum = len(re.findall(r'CHAR:',prompt))
+        if characterNum > 6:
+            characterNum = 6
+        v4_prompt = {
+            "caption": {
+                "base_caption": basePrompt,
+                "char_captions": [],
+            },
+            "use_coords": False,
+            "use_order": True,
+        }
+        v4_negative_prompt = {
+            "caption": {
+                "base_caption": baseNeg,
+                "char_captions": [],
+            },
+        }
+        for i in range(characterNum):
+            try:
+                characterPrompt = prompt.split("CHAR:")[i+1]
+            except:
+                characterPrompt = ""
+            try:
+                uc = neg.split("CHAR:")[i+1]
+            except:
+                uc = ""
+            characterPrompts.append({
+                "prompt": characterPrompt,
+                "uc": uc,
+                "center": {
+                    "x": 0.5,
+                    "y": 0.5
+                }
+            })
+            v4_prompt["caption"]["char_captions"].append(
+                {
+                    "char_caption": characterPrompt,
+                    "centers": [
+                        {
+                            "x": 0.5,
+                            "y": 0.5
+                        }
+                    ],
+                }
+            )
+            v4_negative_prompt["caption"]["char_captions"].append(
+                {
+                    "char_caption": uc,
+                    "centers": [
+                        {
+                            "x": 0.5,
+                            "y": 0.5
+                        }
+                    ],
+                }
+            )
+        
+        characterPrompts = json.dumps(characterPrompts)
+        v4_prompt = json.dumps(v4_prompt)
+        v4_negative_prompt = json.dumps(v4_negative_prompt)      
+        prompt = basePrompt
+        neg = baseNeg
+
+    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":3,"width":{int(width)},"height":{int(height)},"scale":{float(scale)},"sampler":"{sampler}","steps":{int(steps)},"seed":{int(seed)},"n_samples":{int(n_samples)}{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{skip_cfg_above_sigma or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}", "use_coords": false, "character_prompts": {characterPrompts}, "v4_prompt": {v4_prompt}, "v4_negative_prompt": {v4_negative_prompt}}}}}'
 
 def GrayLevels(image, inlo = 0, inhi = 255, mid = 128, outlo = 0, outhi = 255):
     from PIL import Image,ImageMath
