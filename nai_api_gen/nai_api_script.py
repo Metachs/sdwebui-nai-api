@@ -90,6 +90,20 @@ class NAIGENScriptBase(scripts.Script):
                 hr = gr.HTML()
                 refresh = ToolButton(ui.refresh_symbol)
                 refresh.click(fn= lambda: self.connect_api(), inputs=[], outputs=[enable,hr])
+            with gr.Row(variant="compact"):
+                gr.Markdown(
+                    """<details>
+                    <summary><strong>How to use NAIv4 character prompt function</strong></summary>
+                    Use "CHAR:" prefix for each character prompt.<br />
+                    Max 6 character prompts available(more than 6 will be ignored).<br />
+                    Can be used at both positive and negative.<br /><br />
+                    Prompt example:<br />
+                    &emsp;2girls, couple, sitting together, holding hands, looking at another, facing viewer<br />
+                    &emsp;CHAR: aoki reika, smile precure!, nanairogaoka middle school uniform<br />
+                    &emsp;CHAR: dawn \(pokemon\), pokemon dppt, pink miniskirt, black vest, sleeveless<br /><br />
+                    </details>""",
+                    dangerously_allow_html=True
+                )
             with gr.Row(variant="compact", visible = is_img2img):
                 do_local_img2img = gr.Dropdown(value=do_local_img2img_modes[0],choices= do_local_img2img_modes,type="index", label="Mode")
                 if is_img2img:
