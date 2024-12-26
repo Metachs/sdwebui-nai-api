@@ -106,6 +106,28 @@ class NAIGENScriptBase(scripts.Script):
             with gr.Row(variant="compact",visible = is_img2img):
                 extra_noise=gr.Slider(minimum=0.0, maximum=1.0 ,step=0.01, label='Noise', value=0.0)
                 add_original_image = gr.Checkbox(value=True, label='Inpaint: Overlay Image')            
+            with gr.Row(variant="compact", visible = False) as charmsg:
+                gr.Markdown(
+                    """<details>
+                    <summary><strong>NAIv4 Character Syntax</strong></summary>
+                    Use "CHAR:" at the start of a new line for each character prompt.<br/>
+                    Optional: "CHAR:POS:" to specify position, using A1 - E5 names (eg "CHAR:A1:", "CHAR:C3:") (Main Prompt only)<br/>
+                    Can specify negative prompts as well, will pair with main prompt char by order unless specified<br/>
+                    Use "CHAR:1-9" to manually match chars in negatives to main prompt (eg "CHAR:2:" matches the 2nd char)<br />
+                    Add an empty line after last character to avoid applying styles to character definitions.<br/><br/>
+                    Prompt example:<br />
+                    &emsp;2girls<br />
+                    &emsp;CHAR:black hair<br />
+                    &emsp;CHAR:blonde hair<br /><br />
+                    Advanced:<br />
+                    &emsp;2girls<br />
+                    &emsp;CHAR:C2:black hair<br />
+                    &emsp;CHAR:C4:blonde hair<br />
+                    Negative Prompt:<br />    
+                    &emsp;CHAR:2:blue eyes<br /><br />
+                    </details>""",
+                    dangerously_allow_html=True
+                )
             with gr.Accordion(label="Advanced", open=False):
                 with gr.Row(variant="compact"):
                     cfg_rescale=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label='CFG Rescale', value=0.0)
@@ -184,7 +206,10 @@ class NAIGENScriptBase(scripts.Script):
             enable.change(fn=on_enable, inputs=[enable,hr], outputs=[enable,hr])
           
         augment_mode.change(fn = augchange, inputs = [augment_mode,cost_limiter], outputs=[defry, emotion, augwarn,levrow,bgwarn], show_progress=False)
+        
+        model.change (fn = lambda mod: gr.update(visible= '4' in mod), inputs = [model], outputs=[charmsg] )
 
+        # model.change(fn = lambda mod,msg : [gr.update(), gr.update(visible= '4' in mod)], inputs = [model], outputs=[model,charmsg] , show_progress=False)
         self.infotext_fields = [
             (enable, f'{PREFIX} enable'),
             (sampler, f'{PREFIX} sampler'),
@@ -608,13 +633,56 @@ class NAIGENScriptBase(scripts.Script):
         if convert_prompts != "Never":
             if convert_prompts == "Always" or nai_api.prompt_has_weight(prompt): prompt = nai_api.prompt_to_nai(prompt,True)
             if convert_prompts == "Always" or nai_api.prompt_has_weight(neg): neg = nai_api.prompt_to_nai(neg,True)
-            
+
         prompt = prompt.replace('\\(','(').replace('\\)',')') # Un-Escape parenthesis
         neg = neg.replace('\\(','(').replace('\\)',')') #
         prompt = prompt.replace('\\','\\\\') # Escape Backslashes
         neg = neg.replace('\\','\\\\')
         return prompt, neg
-        
+
+    def convert_to_naiv4(self, prompt, neg,convert_prompts="Always"):
+        prompt, neg = self.convert_to_nai(prompt, neg, convert_prompts)
+        chars = []        
+        def parse(original_prompt, negs):
+            index = 0
+            prompt = ""
+            for l in original_prompt.splitlines():
+                sp = l.split(':',maxsplit=2)
+                if len(sp)<2 or sp[0].strip().lower()!="char": 
+                    prompt = l if not prompt else f"{prompt}\n{l}"
+                    continue
+                sp = sp[1:]
+                xy=None
+                if len(sp)>1:
+                    val,txt = sp
+                    try: 
+                        if negs:
+                            index = int(val)
+                        elif val.count(',') == 1: 
+                            xy = [float(v) for v in val.split(',')]
+                        elif len(val.strip()) == 2:
+                            coords = val.strip().lower()
+                            xcoords = {'a':0.1,'b':0.3,'c':0.5,'d':0.7,'e':0.9}
+                            ycoords = {'1':0.1,'2':0.3,'3':0.5,'4':0.7,'5':0.9}
+                            xy = xcoords[coords[0]],ycoords[coords[1]]
+                        else:
+                            txt = val + ':'
+                    except Exception:
+                        txt = val+':'
+                else:
+                    txt = sp[0]
+                nonlocal chars
+                while index >= len(chars): chars += [{}]
+                c = chars[index]
+                c['uc' if negs else 'prompt'] = txt
+                if xy is not None: c['center'] = {'x':xy[0],'y':xy[1]}
+                index+=1
+            return prompt if index > 0 else original_prompt
+            
+        prompt = parse(prompt,False)
+        neg = parse(neg,True)
+        return prompt, neg, chars
+            
     def infotext(self,p,i):
         iteration = int(i / p.batch_size)
         batch = i % p.batch_size
@@ -714,11 +782,16 @@ class NAIGENScriptBase(scripts.Script):
             
             image= None if ( not isimg2img or self.do_local_img2img == 1 or self.init_images is None or len(self.init_images) == 0) else self.init_images[i % len(self.init_images)]
                 
-            prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
+            if '4' in model:            
+                prompt,neg,chars = self.convert_to_naiv4(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
+            else:
+                prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
+                chars = []
+            
             if self.augment_mode:
                 return nai_api.AugmentParams('colorize' if self.augment_mode == 'recolorize' else self.augment_mode,image,p.width,p.height,prompt,defry,emotion,seed)
                 
-            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask =self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma,deliberate_euler_ancestral_bug=deliberate_euler_ancestral_bug,prefer_brownian=prefer_brownian)
+            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask =self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma,deliberate_euler_ancestral_bug=deliberate_euler_ancestral_bug,prefer_brownian=prefer_brownian, characterPrompts=chars)
         
         while len(self.images) < p.n_iter * p.batch_size and not shared.state.interrupted:
             DEBUG_LOG("Loading Images: ",len(self.images) // p.batch_size,p.n_iter, p.batch_size)
