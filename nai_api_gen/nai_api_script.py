@@ -121,8 +121,8 @@ class NAIGENScriptBase(scripts.Script):
                     &emsp;CHAR:blonde hair<br /><br />
                     Advanced:<br />
                     &emsp;2girls<br />
-                    &emsp;CHAR:C2:black hair<br />
-                    &emsp;CHAR:C4:blonde hair<br />
+                    &emsp;CHAR:B3:black hair<br />
+                    &emsp;CHAR:D3:blonde hair<br />
                     Negative Prompt:<br />    
                     &emsp;CHAR:2:blue eyes<br /><br />
                     </details>""",

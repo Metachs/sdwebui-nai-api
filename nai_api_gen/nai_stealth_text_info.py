@@ -114,6 +114,32 @@ def process_nai_geninfo(items):
         prompt = items["Description"]
         negs = j.get("uc", "")
         
+        v4p = j.get("v4_prompt","")
+        v4n = j.get("v4_negative_prompt","")
+        
+        if v4p:
+            use_coords = v4p.get('use_coords',False)
+            xcoords={0.1:'A',0.3:'B',0.5:'C',0.7:'D',0.9:'E'}
+            ycoords={0.1:'1',0.3:'2',0.5:'3',0.7:'4',0.9:'5'}
+            ccp = v4p.get('caption', {}).get('char_captions',{})
+            ccn = v4n.get('caption', {}).get('char_captions',{})
+            for c in ccp:
+                prompt += '\nCHAR:'
+                if use_coords:
+                    cs = c.get('centers')
+                    if len(cs)>0:
+                        x = cs[0].get('x',0.5)
+                        y = cs[0].get('y',0.5)
+                        if x in xcoords and y in ycoords: prompt += f'{xcoords[x]}{ycoords[y]}:'
+                        else: prompt += f'{x},{y}:'
+                prompt+= c.get('char_caption','')
+            if any(c.get('char_caption',None) for c in ccn):
+                for c in ccn:
+                    negs += '\nCHAR:'
+                    negs+= c.get('char_caption','')
+                negs +='\n'
+            if ccp: prompt+='\n'
+            
         if shared.opts.data.get('nai_api_convertImportedWeights', True): 
             try:
                 p = prompt_to_a1111(prompt)
@@ -189,9 +215,10 @@ def process_nai_geninfo(items):
     elif model ==  "Stable Diffusion F64BA557": model = nai_api.NAIv1f
     elif model ==  "Stable Diffusion F1022D28": model = nai_api.NAIv2
     elif model ==  "Stable Diffusion XL 9CC2F394": model = nai_api.NAIv3f
+    elif model ==  "NovelAI Diffusion V4 F6E18726": model = nai_api.NAIv4cp
     else: model = nai_api.NAIv3
         
-    add('model',value = model)    
+    add('model',value = model)
     
     add('smea',quote=True, value = "DYN" if str(j.get('sm_dyn','false')).lower() =='true' else "SMEA" if str(j.get('sm','false')).lower()=='true' else "Off")
     return geninfo, items
