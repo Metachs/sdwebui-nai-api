@@ -188,7 +188,7 @@ def process_nai_geninfo(items):
     skip_cfg_above_sigma = tryfloat(j.get('skip_cfg_above_sigma', None))
     if skip_cfg_above_sigma:
         epsilon = .0001
-        if abs(get_skip_cfg_above_sigma(tryfloat(j["width"]), tryfloat(j["height"]))) < epsilon:
+        if abs(get_skip_cfg_above_sigma(tryfloat(j["width"]), tryfloat(j["height"])) - skip_cfg_above_sigma) < epsilon:
             add('variety', value = True)
         else: 
             add('skip_cfg_above_sigma')
