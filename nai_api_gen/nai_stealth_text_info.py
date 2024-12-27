@@ -210,12 +210,9 @@ def process_nai_geninfo(items):
     add('strength',"Denoising strength")
     model = items.get('Source',"")
     
-    if model ==  "Stable Diffusion 3B3287AF": model = nai_api.NAIv1 
-    elif model ==  "Stable Diffusion F4D50568": model = nai_api.NAIv1c
-    elif model ==  "Stable Diffusion F64BA557": model = nai_api.NAIv1f
+    if model ==  "NovelAI Diffusion V4 F6E18726" or 'NovelAI Diffusion V4' in model: model = nai_api.NAIv4cp 
     elif model ==  "Stable Diffusion F1022D28": model = nai_api.NAIv2
     elif model ==  "Stable Diffusion XL 9CC2F394": model = nai_api.NAIv3f
-    elif model ==  "NovelAI Diffusion V4 F6E18726": model = nai_api.NAIv4cp
     else: model = nai_api.NAIv3
         
     add('model',value = model)

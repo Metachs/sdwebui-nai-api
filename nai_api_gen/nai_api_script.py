@@ -106,25 +106,32 @@ class NAIGENScriptBase(scripts.Script):
             with gr.Row(variant="compact",visible = is_img2img):
                 extra_noise=gr.Slider(minimum=0.0, maximum=1.0 ,step=0.01, label='Noise', value=0.0)
                 add_original_image = gr.Checkbox(value=True, label='Inpaint: Overlay Image')            
-            with gr.Row(variant="compact", visible = False) as charmsg:
+            with gr.Row(visible = False) as charmsg:
                 gr.Markdown(
                     """<details>
                     <summary><strong>NAIv4 Character Syntax</strong></summary>
-                    Use "CHAR:" at the start of a new line for each character prompt.<br/>
-                    Optional: "CHAR:POS:" to specify position, using A1 - E5 names (eg "CHAR:A1:", "CHAR:C3:") (Main Prompt only)<br/>
-                    Can specify negative prompts as well, will pair with main prompt char by order unless specified<br/>
-                    Use "CHAR:1-9" to manually match chars in negatives to main prompt (eg "CHAR:2:" matches the 2nd char)<br />
-                    Add an empty line after last character to avoid applying styles to character definitions.<br/><br/>
-                    Prompt example:<br />
-                    &emsp;2girls<br />
-                    &emsp;CHAR:black hair<br />
-                    &emsp;CHAR:blonde hair<br /><br />
-                    Advanced:<br />
-                    &emsp;2girls<br />
-                    &emsp;CHAR:B3:black hair<br />
-                    &emsp;CHAR:D3:blonde hair<br />
-                    Negative Prompt:<br />    
-                    &emsp;CHAR:2:blue eyes<br /><br />
+                    Use "CHAR:" at the start of a new line for each character prompt (not case sensitive).<br/>
+                    The character prompt ends at the next line break, and can be embedded in the prompt (eg for styles).<br/>
+                    Add an empty line after the last character to avoid applying styles to that character only.<br/>
+                    Use "CHAR:POS:" to specify position using A1 - E5 (eg "CHAR:A1:", "CHAR:C3:") (Main Prompt only)<br/>
+                    Use "CHAR:x,y:" to specify exact position, range is 0 to 1.0 (eg "CHAR:0.1,0.1:", "CHAR:0.5,0.5:") (Main Prompt only)<br/>                    
+                    Can specify negatives in the negative prompt, will pair with main prompt char by order unless specified<br/>
+                    Use "CHAR:1-9:" to manually match chars in negatives to main prompt (eg "CHAR:2:" matches the 2nd char)<br/>
+                    <br/>
+                    Prompt example:<br/>
+                    &emsp;2girls<br/>
+                    &emsp;CHAR:black hair<br/>
+                    &emsp;CHAR:blonde hair<br/>
+                    Negative Prompt:<br/>
+                    &emsp;CHAR:<br/>
+                    &emsp;CHAR:blue eyes<br/>
+                    <br/>
+                    Advanced:<br/>
+                    &emsp;2girls<br/>
+                    &emsp;CHAR:B3:black hair<br/>
+                    &emsp;CHAR:D3:blonde hair<br/>
+                    Negative Prompt:<br/>    
+                    &emsp;CHAR:2:blue eyes<br/>
                     </details>""",
                     dangerously_allow_html=True
                 )
@@ -640,8 +647,7 @@ class NAIGENScriptBase(scripts.Script):
         neg = neg.replace('\\','\\\\')
         return prompt, neg
 
-    def convert_to_naiv4(self, prompt, neg,convert_prompts="Always"):
-        prompt, neg = self.convert_to_nai(prompt, neg, convert_prompts)
+    def parse_chars(self, prompt, neg):
         chars = []        
         def parse(original_prompt, negs):
             index = 0
@@ -662,9 +668,8 @@ class NAIGENScriptBase(scripts.Script):
                             xy = [float(v) for v in val.split(',')]
                         elif len(val.strip()) == 2:
                             coords = val.strip().lower()
-                            xcoords = {'a':0.1,'b':0.3,'c':0.5,'d':0.7,'e':0.9}
-                            ycoords = {'1':0.1,'2':0.3,'3':0.5,'4':0.7,'5':0.9}
-                            xy = xcoords[coords[0]],ycoords[coords[1]]
+                            xycoords = {'a':0.1,'b':0.3,'c':0.5,'d':0.7,'e':0.9,'1':0.1,'2':0.3,'3':0.5,'4':0.7,'5':0.9}
+                            xy = xycoords[coords[0]], xycoords[coords[1]]
                         else:
                             txt = val + ':'
                     except Exception:
@@ -709,9 +714,6 @@ class NAIGENScriptBase(scripts.Script):
         extra_noise = getattr(p,f'{PREFIX}_'+ 'extra_noise',extra_noise)        
         add_original_image = getattr(p,f'{PREFIX}_'+ 'add_original_image',add_original_image)        
         extra_noise = max(getattr(p,"extra_noise",0) , extra_noise)
-        
-        
-        
         
         defry = getattr(p,f'{PREFIX}_'+ 'defry',defry)        
         emotion = getattr(p,f'{PREFIX}_'+ 'emotion',emotion)
@@ -782,11 +784,10 @@ class NAIGENScriptBase(scripts.Script):
             
             image= None if ( not isimg2img or self.do_local_img2img == 1 or self.init_images is None or len(self.init_images) == 0) else self.init_images[i % len(self.init_images)]
                 
-            if '4' in model:            
-                prompt,neg,chars = self.convert_to_naiv4(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
-            else:
-                prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
-                chars = []
+            prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
+            
+            if '4' in model: prompt,neg,chars = self.parse_chars(prompt,neg)
+            else: chars = []
             
             if self.augment_mode:
                 return nai_api.AugmentParams('colorize' if self.augment_mode == 'recolorize' else self.augment_mode,image,p.width,p.height,prompt,defry,emotion,seed)
