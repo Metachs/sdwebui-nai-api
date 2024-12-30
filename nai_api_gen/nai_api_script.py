@@ -671,9 +671,9 @@ class NAIGENScriptBase(scripts.Script):
                             xycoords = {'a':0.1,'b':0.3,'c':0.5,'d':0.7,'e':0.9,'1':0.1,'2':0.3,'3':0.5,'4':0.7,'5':0.9}
                             xy = xycoords[coords[0]], xycoords[coords[1]]
                         else:
-                            txt = val + ':'
+                            txt = val + ':' + txt
                     except Exception:
-                        txt = val+':'
+                        txt = val + ':' + txt
                 else:
                     txt = sp[0]
                 nonlocal chars
