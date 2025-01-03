@@ -123,6 +123,7 @@ def process_nai_geninfo(items):
             ycoords={0.1:'1',0.3:'2',0.5:'3',0.7:'4',0.9:'5'}
             ccp = v4p.get('caption', {}).get('char_captions',{})
             ccn = v4n.get('caption', {}).get('char_captions',{})
+
             for c in ccp:
                 prompt += '\nCHAR:'
                 if use_coords:
@@ -132,11 +133,15 @@ def process_nai_geninfo(items):
                         y = cs[0].get('y',0.5)
                         if x in xcoords and y in ycoords: prompt += f'{xcoords[x]}{ycoords[y]}:'
                         else: prompt += f'{x},{y}:'
-                prompt+= c.get('char_caption','')
+                cap = c.get('char_caption','')
+                if '#' in cap:
+                    if shared.opts.data.get('enable_prompt_comments', False) and shared.opts.data.get('nai_alt_action_tag', ''):
+                        cap = cap.replace('#',shared.opts.data.get('nai_alt_action_tag'))
+                prompt += cap
             if any(c.get('char_caption',None) for c in ccn):
                 for c in ccn:
                     negs += '\nCHAR:'
-                    negs+= c.get('char_caption','')
+                    negs += c.get('char_caption','')
                 negs +='\n'
             if ccp: prompt+='\n'
             

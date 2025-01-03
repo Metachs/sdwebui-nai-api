@@ -57,6 +57,7 @@ def on_ui_settings():
 
     addopt('nai_verbose_logging', shared.OptionInfo(False, "Enable debug logging. IE Dump a bunch of garbage to the console.",gr.Checkbox, section=section))        
 
+    addopt('nai_alt_action_tag', shared.OptionInfo('::', "Alternate Action Tag - When used in character prompts, will be replaced with '#'. Workaround for NAI's action tag syntax ('target#pointing') conflicting with sdwebui's Prompt Comment feature, which uses '#' to start comments, breaking '#' action tags. Leave empty to disable.", gr.Text, section=section))
  
     # addopt('nai_api_vibe_size', shared.OptionInfo(448, "Vibe Image Downscaling size (Default: 448)",gr.Slider, {"minimum": 256, "maximum": 1024, "step": 64}, section=section))
         

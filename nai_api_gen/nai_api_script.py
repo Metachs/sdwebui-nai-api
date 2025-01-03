@@ -118,6 +118,9 @@ class NAIGENScriptBase(scripts.Script):
                     Can specify negatives in the negative prompt, will pair with main prompt char by order unless specified<br/>
                     Use "CHAR:1-9:" to manually match chars in negatives to main prompt (eg "CHAR:2:" matches the 2nd char)<br/>
                     <br/>
+                    By default, sdwebui treats anything after '#' as a comment, which breaks NAI's action tag syntax<br/>
+                    Use the configurable Alternate Action Tag ('::' by default, eg 'target::pointing') or disable "Stable Diffusion > Enable Comments"<br/>
+                    <br/>
                     Prompt example:<br/>
                     &emsp;2girls<br/>
                     &emsp;CHAR:black hair<br/>
@@ -676,6 +679,9 @@ class NAIGENScriptBase(scripts.Script):
                         txt = val + ':' + txt
                 else:
                     txt = sp[0]
+                    
+                if shared.opts.data.get('nai_alt_action_tag', ''): txt = txt.replace(shared.opts.data.get('nai_alt_action_tag'), '#')
+                
                 nonlocal chars
                 while index >= len(chars): chars += [{}]
                 c = chars[index]
