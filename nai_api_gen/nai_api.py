@@ -32,6 +32,8 @@ augment_emotions = ['neutral', 'happy', 'sad', 'angry', 'scared', 'surprised', '
 
 noise_schedule_selections = ["recommended","exponential","polyexponential","karras","native"]
 
+nai_text_tag = '. Text:'
+
 def get_headers(key):
     return {
         'accept': "*/*",
@@ -381,9 +383,6 @@ def get_skip_cfg_above_sigma(width,height):
 
 def clean_prompt(p):
     if type(p) != str: p=f'{p}'
-    #TODO: Look for a better way to do this        
-    p=re.sub("(?<=[^\\\\])\"","\\\"" ,p)
-    p=re.sub("\r?\n|\t"," ",p)
     return p
     
 def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
@@ -391,7 +390,7 @@ def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
     if mode == 'emotion' and emotion and emotion in augment_emotions:
         prompt = f"{emotion.lower()};;{prompt}"
     if prompt:
-        prompt = f',"prompt":"{prompt}"'
+        prompt = f',"prompt":{json.dumps(prompt)}'
     else: prompt = ''
     defry = f',"defry":{int(defry)}'
     
@@ -413,18 +412,27 @@ def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
         # file.write(f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{defry or ""}{prompt or ""}{seed or ""}}}')
     return f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{image or ""}{defry or ""}{prompt or ""}{seed or ""}}}'
 
-def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6,n_samples = 1,variety = False,skip_cfg_above_sigma = None,deliberate_euler_ancestral_bug=None,prefer_brownian=None, characterPrompts = None):
+def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = 1.0 , reference_strength = 0.6,n_samples = 1,variety = False,skip_cfg_above_sigma = None,deliberate_euler_ancestral_bug=None,prefer_brownian=None, characterPrompts = None, text_tag = None):
+
     prompt=clean_prompt(prompt)
     neg=clean_prompt(neg)
     
     if type(uncond_scale) != float and type (uncond_scale) != int: uncond_scale = 1.0
     if type(cfg_rescale) != float and type (cfg_rescale) != int: cfg_rescale = 0.0
-    
     if prompt == "": prompt = " "    
+    
     if model not in nai_models: model = NAIv3
     
     isV4 = model == NAIv4cp
     isV3plus = model == NAIv3 or model == NAIv3f or isV4
+    
+    if isV4 and text_tag is None and nai_text_tag in prompt:        
+        # Documented Syntax (handle period before ' Text:')
+        # Disabled for compatability, if user adds a period before ' Text:' NAI just ignores it.
+        # if nai_text_tag in prompt: prompt, text_tag = prompt.split(nai_text_tag,1)
+        
+        # Actual Syntax (Only check for ' Text:')
+        if ' Text:' in prompt: prompt, text_tag = prompt.split(' Text:',1)
     
     if "ddim" in sampler.lower():
         sampler = "ddim_v3" if isV3 else "ddim"
@@ -506,6 +514,9 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             tags = 'lowres, text, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
     
     if tags and tags not in neg: neg = f'{tags}, {neg}'
+    
+    if isV4 and text_tag is not None:
+        prompt = f'{prompt}{nai_text_tag}{text_tag}'
     
     if ucPreset not in [0,1,2,3]: ucPreset = 3
     if ucPreset == 3 and model != NAIv3: ucPreset = 2
@@ -600,7 +611,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             cps.append(cp)                
         v4params = f',"use_coords":{"true" if use_coords else "false"},"characterPrompts":{json.dumps(cps)},"v4_prompt":{json.dumps(v4p)},"v4_negative_prompt":{json.dumps(v4n)}'
     
-    return f'{{"input":"{prompt}","model":"{model}","action":"{action}","parameters":{{"params_version":3,"width":{int(width)},"height":{int(height)},"scale":{float(scale)},"sampler":"{sampler}","steps":{int(steps)},"seed":{int(seed)},"n_samples":{int(n_samples)}{v4params}{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{skip_cfg_above_sigma or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":"{neg}"}}}}'
+    #TODO: Try to change this back to a dictionary now that NAI's parameter parsing is more consistent 
+    return f'{{"input":{json.dumps(prompt)},"model":"{model}","action":"{action}","parameters":{{"params_version":3,"width":{int(width)},"height":{int(height)},"scale":{float(scale)},"sampler":"{sampler}","steps":{int(steps)},"seed":{int(seed)},"n_samples":{int(n_samples)}{v4params}{strength or ""}{noise or ""},"ucPreset":{ucPreset},"qualityToggle":{qualityToggle},"sm":{sm},"sm_dyn":{sm_dyn},"dynamic_thresholding":{dynamic_thresholding},"controlnet_strength":1,"legacy":false,"legacy_v3_extend":{legacy_v3_extend},"add_original_image":{overlay}{uncond_scale or ""}{cfg_rescale or ""}{noise_schedule or ""}{image or ""}{mask or ""}{skip_cfg_above_sigma or ""}{reference or ""}{extra_noise_seed or ""},"negative_prompt":{json.dumps(neg)}}}}}'
 
 def GrayLevels(image, inlo = 0, inhi = 255, mid = 128, outlo = 0, outhi = 255):
     from PIL import Image,ImageMath

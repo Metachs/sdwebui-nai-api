@@ -115,7 +115,7 @@ def process_nai_geninfo(items):
         negs = j.get("uc", "")
         
         v4p = j.get("v4_prompt","")
-        v4n = j.get("v4_negative_prompt","")
+        v4n = j.get("v4_negative_prompt","")        
         
         if v4p:
             use_coords = v4p.get('use_coords',False)
@@ -123,6 +123,10 @@ def process_nai_geninfo(items):
             ycoords={0.1:'1',0.3:'2',0.5:'3',0.7:'4',0.9:'5'}
             ccp = v4p.get('caption', {}).get('char_captions',{})
             ccn = v4n.get('caption', {}).get('char_captions',{})
+            
+            if nai_api.nai_text_tag in prompt:
+                prompt = prompt.replace(nai_api.nai_text_tag,'\nText:',1)
+                if not ccp: prompt+='\n'
 
             for c in ccp:
                 prompt += '\nCHAR:'
