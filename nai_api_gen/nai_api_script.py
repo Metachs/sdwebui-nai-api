@@ -109,7 +109,7 @@ class NAIGENScriptBase(scripts.Script):
             with gr.Row(visible = False) as charmsg:
                 gr.Markdown(
                     """<details>
-                    <summary><strong>NAIv4 Character Syntax</strong></summary>
+                    <summary><strong>NAIv4 Syntax</strong></summary>
                     Use "CHAR:" at the start of a new line for each character prompt (not case sensitive).<br/>
                     The character prompt ends at the next line break, and can be embedded in the prompt (eg for styles).<br/>
                     Add an empty line after the last character to avoid applying styles to that character only.<br/>
@@ -874,7 +874,7 @@ class NAIGENScriptBase(scripts.Script):
     def request_complete(self,p,idx,*results):
         start = self.last_request_time
         self.last_request_time = time.time()
-        errors= False
+        has_error = False
         msg = f"Request Completed in {self.last_request_time - start:.2f}s"
         gentime = 0
         retry_count = 0
@@ -886,7 +886,7 @@ class NAIGENScriptBase(scripts.Script):
                 err = f'Request {idx + i + 1}/{p.n_iter*p.batch_size}: {result.message}'                
                 self.comment(p,err)
                 if result.status_code < 0: errors.display(result, "NAI Image Request", full_traceback= True)
-                errors = True
+                has_error = True
             retry_count += result.retry_count
                 
         if retry_count>0: msg = f'{msg} Retries: {retry_count:.2f}s'
@@ -906,8 +906,8 @@ class NAIGENScriptBase(scripts.Script):
             msg = f'{msg} Average Total: {sum(self.times)/len(self.times):.2f}s'
             msg = f'{msg} Average Wait: {sum(self.waits)/len(self.waits):.2f}s'
             msg = f'{msg} Ratio: {sum(self.rats)/len(self.rats):.2f}'
-        if not errors and idx == 0: self.comment(p,msg)
-        return errors
+        if not has_error and idx == 0: self.comment(p,msg)
+        return has_error
         
     def load_image(self, p, i, parameters, batch_size = 1):    
         key = self.get_api_key()        
