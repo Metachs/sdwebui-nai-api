@@ -112,7 +112,6 @@ class NAIGENScriptBase(scripts.Script):
                     <summary><strong>NAIv4 Syntax</strong></summary>
                     Use "CHAR:" at the start of a new line for each character prompt (not case sensitive).<br/>
                     The character prompt ends at the next line break, and can be embedded in the prompt (eg for styles).<br/>
-                    Add an empty line after the last character to avoid applying styles to that character only.<br/>
                     Use "CHAR:POS:" to specify position using A1 - E5 (eg "CHAR:A1:", "CHAR:C3:") (Main Prompt only)<br/>
                     Use "CHAR:x,y:" to specify exact position, range is 0 to 1.0 (eg "CHAR:0.1,0.1:", "CHAR:0.5,0.5:") (Main Prompt only)<br/>                    
                     Can specify negatives in the negative prompt, will pair with main prompt char by order unless specified<br/>
@@ -120,7 +119,7 @@ class NAIGENScriptBase(scripts.Script):
                     '|' syntax for Characters is NOT supported, due to conflicts with other extensions<br/>
                     <br/>
                     If " Text:" is used inside the prompt, the rest of the prompt (including added styles) will be treated as a text tag<br/>
-                    Use "Text:" at the start of a new line to define a text tag that ends at the next line break, allowing styles to be appended to the prompt.<br/>
+                    Use "Text:" at the start of a new line to define a text tag that ends at the next line break to prevent this.<br/>
                     <br/>
                     By default, sdwebui treats anything after '#' as a comment, which breaks NAI's action tag syntax<br/>
                     Use the configurable Alternate Action Tag ('::' by default, eg 'target::pointing') or disable "Stable Diffusion > Enable Comments"<br/>
@@ -362,6 +361,7 @@ class NAIGENScriptBase(scripts.Script):
         self.init_masked = None
         self.crop = None
         self.init_images = None
+        self.has_protected_prompt = False
         
     def comment(self, p , c):
         print (c)
@@ -416,21 +416,48 @@ class NAIGENScriptBase(scripts.Script):
         p.width = width
         p.height = height
         
+    def protect_prompts(self, p):
+        def protect_prompt(s):
+            l = s.rstrip().splitlines()[-1]
+            if ':' not in l: return s
+            sp = l.split(':',maxsplit=2)
+            tag = sp[0].strip().lower()
+            if tag == "text" or tag == "char":
+                self.has_protected_prompt = True
+                return s.rstrip() + "\n::CHAREND::"
+            return s
+        p.prompt = protect_prompt(p.prompt)
+        p.negative_prompt = protect_prompt(p.negative_prompt)
+        
+    def restore_prompts(self, p):
+        if not self.has_protected_prompt: return
+        def protect_prompt(s):
+            return s.replace('::CHAREND::','')            
+        if p.all_prompts: p.all_prompts = [protect_prompt(x) for x in p.all_prompts]
+        if p.all_negative_prompts: p.all_negative_prompts = [protect_prompt(x) for x in p.all_negative_prompts]
+        if getattr(p,'main_prompt',None): p.main_prompt = protect_prompt(p.main_prompt)
+        if getattr(p,'main_negative_prompt',None): p.main_prompt = protect_prompt(p.main_negative_prompt)
+        if p.prompt: p.prompt = protect_prompt(p.prompt)
+        if p.negative_prompt: p.negative_prompt = protect_prompt(p.negative_prompt)
+        
     def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,keep_mask_for_local,*args):
         if self.disabled: return        
-        DEBUG_LOG(f'nai_configuration')        
+        DEBUG_LOG(f'nai_configuration')   
+
+        self.protect_prompts(p)
+        
         self.do_nai_post=nai_post            
         self.cost_limiter = cost_limiter
         
         self.isimg2img = getattr(p, "init_images",None)
         DEBUG_LOG("self.isimg2img",self.isimg2img,"do_local_img2img",do_local_img2img)
 
-        self.mask = getattr(p,"image_mask",None)
+        self.mask = getattr(p,"image_mask",None)        
         
         inpaint_mode =  getattr(p,f'{PREFIX}_'+ 'inpaint_mode',inpaint_mode)
         if isinstance(inpaint_mode,str):
             try: inpaint_mode = int(inpaint_mode) if len(inpaint_mode) == 1 else inpaint_mode_choices.index(inpaint_mode)
-            except: inpaint_mode = 0        
+            except: inpaint_mode = 0
         self.inpaint_mode = inpaint_mode
         
         self.augment_mode =  getattr(p,f'{PREFIX}_'+ 'augment_mode',augment_mode)
@@ -441,10 +468,10 @@ class NAIGENScriptBase(scripts.Script):
             if cost_limiter: self.limit_costs(p, arbitrary_res = True)
                 
         else: 
-            self.augment_mode = ""        
+            self.augment_mode = ""
             if cost_limiter: self.limit_costs(p)
             self.adjust_resolution(p)
-            self.setup_sampler_name(p, sampler,getattr(p,f'{PREFIX}_'+ 'noise_schedule',noise_schedule))        
+            self.setup_sampler_name(p, sampler,getattr(p,f'{PREFIX}_'+ 'noise_schedule',noise_schedule))
 
         if not self.isimg2img: do_local_img2img = 0
         elif isinstance(do_local_img2img,str):
@@ -496,8 +523,11 @@ class NAIGENScriptBase(scripts.Script):
 
     def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,add_original_image,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,keep_mask_for_local,*args):
         if self.disabled: return
+        
+        self.restore_prompts(p)        
+        
         isimg2img=self.isimg2img
-        do_local_img2img=self.do_local_img2img       
+        do_local_img2img=self.do_local_img2img
 
         if do_local_img2img== 1 or do_local_img2img == 2: restore_local(p)
         
