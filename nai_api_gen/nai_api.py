@@ -19,11 +19,12 @@ NAIv2 = "nai-diffusion-2"
 NAIv3 = "nai-diffusion-3"
 NAIv3f = "nai-diffusion-furry-3"
 NAIv4cp = "nai-diffusion-4-curated-preview"
+NAIv4f = "nai-diffusion-4-full"
 
 NAI_IMAGE_URL = 'https://image.novelai.net/ai/generate-image'
 NAI_AUGMENT_URL = 'https://image.novelai.net/ai/augment-image'
 
-nai_models = [NAIv4cp,NAIv3,NAIv3f,NAIv2]
+nai_models = [NAIv4f,NAIv4cp,NAIv3,NAIv3f,NAIv2]
 
 NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde","k_dpmpp_2m_sde"]
 noise_schedules = ["exponential","polyexponential","karras","native"]
@@ -419,14 +420,14 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     
     if type(uncond_scale) != float and type (uncond_scale) != int: uncond_scale = 1.0
     if type(cfg_rescale) != float and type (cfg_rescale) != int: cfg_rescale = 0.0
-    if prompt == "": prompt = " "    
+    if prompt == "": prompt = " "
     
     if model not in nai_models: model = NAIv3
     
-    isV4 = model == NAIv4cp
+    isV4 = model == NAIv4cp or model == NAIv4f
     isV3plus = model == NAIv3 or model == NAIv3f or isV4
     
-    if isV4 and text_tag is None and nai_text_tag in prompt:        
+    if isV4 and text_tag is None and nai_text_tag in prompt:
         # Documented Syntax (handle period before ' Text:')
         # Disabled for compatability, if user adds a period before ' Text:' NAI just ignores it.
         # if nai_text_tag in prompt: prompt, text_tag = prompt.split(nai_text_tag,1)
@@ -515,7 +516,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     
     if tags and tags not in neg: neg = f'{tags}, {neg}'
     
-    if isV4 and text_tag is not None:
+    if isV4 and text_tag:
         prompt = f'{prompt}{nai_text_tag}{text_tag}'
     
     if ucPreset not in [0,1,2,3]: ucPreset = 3
