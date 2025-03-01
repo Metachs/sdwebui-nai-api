@@ -469,8 +469,11 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     uncond_scale = ""
         
     if qualityToggle:
-        if model == NAIv3 or model == NAIv4cp:
+        if model == NAIv3:
             tags = 'best quality, amazing quality, very aesthetic, absurdres'
+            if tags not in prompt: prompt = f'{prompt}, {tags}'
+        elif model == NAIv4cp:
+            tags = 'rating:general, best quality, very aesthetic, absurdres'
             if tags not in prompt: prompt = f'{prompt}, {tags}'
         elif isV4:
             if not text_tag: tags = 'no text, best quality, very aesthetic, absurdres'
@@ -513,12 +516,12 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     if ucPreset == 1:
         if model == NAIv3 or model == NAIv2:
             tags = 'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing'
-        elif model == NAIv4:
+        elif model == NAIv4cp:
+            tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, logo, dated, signature'
+        elif isV4:
             tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing'
         elif model == NAIv3f:
             tags = '{worst quality}, guide lines, unfinished, bad, url, tall image, widescreen, compression artifacts, unknown text'
-        elif isV4:
-            tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, logo, dated, signature, blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, logo, dated, signature, multiple views'
         else:
             tags = 'lowres, text, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
     
