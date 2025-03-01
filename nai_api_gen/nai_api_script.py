@@ -418,7 +418,9 @@ class NAIGENScriptBase(scripts.Script):
         
     def protect_prompts(self, p):
         def protect_prompt(s):
-            l = s.rstrip().splitlines()[-1]
+            l = s.rstrip().splitlines()
+            if not l: return s
+            l = l[-1]
             if ':' not in l: return s
             sp = l.split(':',maxsplit=2)
             tag = sp[0].strip().lower()
