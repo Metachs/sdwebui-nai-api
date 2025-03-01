@@ -95,7 +95,7 @@ class NAIGENScriptBase(scripts.Script):
                 if is_img2img:
                     inpaint_mode = gr.Dropdown(value=inpaint_mode_default, label=inpaint_label , choices=inpaint_mode_choices, type="index")
             with gr.Row(variant="compact"):
-                model = gr.Dropdown(label= "Model",value=nai_api.NAIv3,choices=nai_api.nai_models,type="value",show_label=True)
+                model = gr.Dropdown(label= "Model",value=nai_api.nai_models[0],choices=nai_api.nai_models,type="value",show_label=True)
                 sampler = gr.Dropdown(label="Sampler",value="Auto",choices=["Auto",*nai_api.NAI_SAMPLERS],type="value",show_label=True)
             with gr.Row(variant="compact"):
                 noise_schedule = gr.Dropdown(label="Schedule",value="recommended",choices=["recommended","exponential","polyexponential","karras","native"],type="value")

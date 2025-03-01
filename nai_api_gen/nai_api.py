@@ -473,7 +473,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             tags = 'best quality, amazing quality, very aesthetic, absurdres'
             if tags not in prompt: prompt = f'{prompt}, {tags}'
         elif isV4:
-            if text_tag is None: tags = 'no text, best quality, very aesthetic, absurdres'
+            if not text_tag: tags = 'no text, best quality, very aesthetic, absurdres'
             else: tags = 'best quality, very aesthetic, absurdres'
             if tags not in prompt: prompt = f'{prompt}, {tags}'
         elif model == NAIv3f:
@@ -513,6 +513,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     if ucPreset == 1:
         if model == NAIv3 or model == NAIv2:
             tags = 'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing'
+        elif model == NAIv4:
+            tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing'
         elif model == NAIv3f:
             tags = '{worst quality}, guide lines, unfinished, bad, url, tall image, widescreen, compression artifacts, unknown text'
         elif isV4:
