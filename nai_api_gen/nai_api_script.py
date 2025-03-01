@@ -839,7 +839,7 @@ class NAIGENScriptBase(scripts.Script):
             mask = self.mask
             if '4' in model: 
                 prompt,neg,chars,text_tag = self.parse_tags(prompt,neg)
-                if mask:
+                if mask and inpaint_mode!=1:
                     mask = mask.resize((self.mask.width//8, self.mask.height//8),Image.Resampling.NEAREST)
                     mask = mask.resize((self.mask.width, self.mask.height),Image.Resampling.NEAREST)
                     mask = clip(mask, 128)

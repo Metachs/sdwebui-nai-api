@@ -469,8 +469,12 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     uncond_scale = ""
         
     if qualityToggle:
-        if model == NAIv3 or isV4:
+        if model == NAIv3 or model == NAIv4cp:
             tags = 'best quality, amazing quality, very aesthetic, absurdres'
+            if tags not in prompt: prompt = f'{prompt}, {tags}'
+        elif isV4:
+            if text_tag is None: tags = 'no text, best quality, very aesthetic, absurdres'
+            else: tags = 'best quality, very aesthetic, absurdres'
             if tags not in prompt: prompt = f'{prompt}, {tags}'
         elif model == NAIv3f:
             tags = '{best quality}, {amazing quality}'
@@ -499,8 +503,10 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             tags = '{{worst quality}}, [displeasing], {unusual pupils}, guide lines, {{unfinished}}, {bad}, url, artist name, {{tall image}}, mosaic, {sketch page}, comic panel, impact (font), [dated], {logo}, ych, {what}, {where is your god now}, {distorted text}, repeated text, {floating head}, {1994}, {widescreen}, absolutely everyone, sequence, {compression artifacts}, hard translated, {cropped}, {commissioner name}, unknown text, high contrast'
         elif model == NAIv2:
             tags = 'lowres, bad, text, error, missing, extra, fewer, cropped, jpeg artifacts, worst quality, bad quality, watermark, displeasing, unfinished, chromatic aberration, scan, scan artifacts'
-        elif isV4:
+        elif model == NAIv4cp:
             tags = 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, logo, dated, signature, multiple views, gigantic breasts'
+        elif isV4:
+            tags = 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, multiple views, logo, too many watermarks'
         else:
             tags = 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
     
