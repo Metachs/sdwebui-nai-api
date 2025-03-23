@@ -219,12 +219,16 @@ def process_nai_geninfo(items):
     add('strength',"Denoising strength")
     model = items.get('Source',"")
     
-    if model ==  "NovelAI Diffusion V4 F6E18726" or 'NovelAI Diffusion V4' in model: model = nai_api.NAIv4cp 
+    if model ==  "NovelAI Diffusion V4 F6E18726" in model: model = nai_api.NAIv4cp 
+    elif model ==  "NovelAI Diffusion V4 4F49EC75" or 'NovelAI Diffusion V4' in model: model = nai_api.NAIv4 
     elif model ==  "Stable Diffusion F1022D28": model = nai_api.NAIv2
     elif model ==  "Stable Diffusion XL 9CC2F394": model = nai_api.NAIv3f
     else: model = nai_api.NAIv3
         
     add('model',value = model)
+    
+    legv4 = add('legacy_uc')
+    if 'NovelAI Diffusion V4' in model and legv4 is None: add('legacy_uc',value="true")
     
     add('smea',quote=True, value = "DYN" if str(j.get('sm_dyn','false')).lower() =='true' else "SMEA" if str(j.get('sm','false')).lower()=='true' else "Off")
     return geninfo, items
