@@ -569,7 +569,7 @@ class NAIGENScriptBase(scripts.Script):
                     mask = mask.convert('L')
                     min_mask = mask
                 else: 
-                    self.add_original_image=False
+                    # self.add_original_image=False
                     adjust_mask = getattr(p,f'{PREFIX}_'+ 'adjust_mask',0)                    
                     blur_outside_mask = getattr(p,f'{PREFIX}_'+ 'blur_outside_mask',False)
                     if p.inpaint_full_res:
@@ -617,7 +617,7 @@ class NAIGENScriptBase(scripts.Script):
                 init_images.append(image)
             
             self.mask = mask
-            self.overlay = self.inpaint_mode == 1 or getattr(p,"inpaint_full_res",False) or alt_masking and add_original_image
+            self.overlay = self.inpaint_mode == 1 or getattr(p,"inpaint_full_res",False) or add_original_image
 
             self.init_masked = init_masked
             self.crop = crop
@@ -771,8 +771,8 @@ class NAIGENScriptBase(scripts.Script):
         defry = getattr(p,f'{PREFIX}_'+ 'defry',defry)        
         emotion = getattr(p,f'{PREFIX}_'+ 'emotion',emotion)
         inpaint_mode=self.inpaint_mode
-        if self.inpaint_mode == 1 or self.alt_masking:
-            add_original_image = False
+        # if self.inpaint_mode == 1 or self.alt_masking:
+            # add_original_image = False
         
         if disable_smea_in_post and self.in_post_process:            
             smea = "None" # Disable SMEA during post  
@@ -855,7 +855,7 @@ class NAIGENScriptBase(scripts.Script):
             if self.augment_mode:
                 return nai_api.AugmentParams('colorize' if self.augment_mode == 'recolorize' else self.augment_mode,image,p.width,p.height,prompt,defry,emotion,seed)
                 
-            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay=add_original_image, mask = mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma,deliberate_euler_ancestral_bug=deliberate_euler_ancestral_bug,prefer_brownian=prefer_brownian, characterPrompts=chars,text_tag=text_tag,legacy_uc=legacy_uc)
+            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]),overlay = False, mask = mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma,deliberate_euler_ancestral_bug=deliberate_euler_ancestral_bug,prefer_brownian=prefer_brownian, characterPrompts=chars,text_tag=text_tag,legacy_uc=legacy_uc)
         
         while len(self.images) < p.n_iter * p.batch_size and not shared.state.interrupted:
             DEBUG_LOG("Loading Images: ",len(self.images) // p.batch_size,p.n_iter, p.batch_size)
