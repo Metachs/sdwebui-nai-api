@@ -617,7 +617,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         ccp = []
         ccn = []
         v4p = {'caption':{'base_caption': prompt, 'char_captions': ccp}, 'use_coords':use_coords, 'use_order':True}
-        v4n = {'caption':{'base_caption': neg, 'char_captions': ccn}}
+        v4n = {'caption':{'base_caption': neg, 'char_captions': ccn}, 'legacy_uc':True if legacy_uc else False}
         for cp in characterPrompts:
             if not isinstance(cp, dict): continue
             if 'center' not in cp: cp['center'] = {'x':0.5,'y':0.5}
