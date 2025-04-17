@@ -23,7 +23,14 @@ def on_ui_settings():
             
     addopt('nai_api_png_info_read', shared.OptionInfo(True, "Read Stealth PNG Info from images",gr.Checkbox, section=section))
         
+    addopt('nai_api_vibe_v4_count', shared.OptionInfo(4, "Maximum Number of Vibe Transfer Images for v4, opus limit=4, Requires Restart",gr.Slider, {"minimum":  1, "maximum": 32, "step": 1}, section=section))
+    
+    addopt('nai_api_vibe_v4_directory', shared.OptionInfo('', "Directory where v4 Vibe Encodings are cached, uses 'vibe_encodings' in this extension's directory by default.", gr.Textbox, section=section))
+    
+    addopt('nai_api_vibe_v4_preview_directory', shared.OptionInfo('', "Directory for full size v4 preview images, does NOT store encodings, only provides a way to view and load images using a custom name.", gr.Textbox, section=section))
+    
     addopt('nai_api_vibe_count', shared.OptionInfo(4, "Maximum Number of Vibe Transfer Images, Requires Restart",gr.Slider, {"minimum":  1, "maximum": 32, "step": 1}, section=section))
+    
     
     addopt('nai_api_vibe_pre', shared.OptionInfo( 'NAI', "Preprocess Vibe Images - NAI: Use NAI's resizing method, (Resizes images to 448x448, padding with black, browser-dependendent low quality scaling). None: Send original images, this changes results as NAI's servers seem to use a different scaling implementation. Scale: Scale image to fit inside 448x448 without padding (Lanczos, higher quality than the NAI method).",gr.Radio, {"choices": ['NAI','Scale','None']  }, section=section))
 
@@ -55,11 +62,9 @@ def on_ui_settings():
     
     addopt('nai_query_logging', shared.OptionInfo(False, "Log NAI API Queries to console.",gr.Checkbox, section=section))
 
-    addopt('nai_verbose_logging', shared.OptionInfo(False, "Enable debug logging. IE Dump a bunch of garbage to the console.",gr.Checkbox, section=section))        
+    addopt('nai_verbose_logging', shared.OptionInfo(False, "Enable debug logging. IE Dump a bunch of garbage to the console.",gr.Checkbox, section=section))
 
     addopt('nai_alt_action_tag', shared.OptionInfo('::', "Alternate Action Tag - When used in character prompts, will be replaced with '#'. Workaround for NAI's action tag syntax ('target#pointing') conflicting with sdwebui's Prompt Comment feature, which uses '#' to start comments, breaking '#' action tags. Leave empty to disable.", gr.Text, section=section))
- 
-    # addopt('nai_api_vibe_size', shared.OptionInfo(448, "Vibe Image Downscaling size (Default: 448)",gr.Slider, {"minimum": 256, "maximum": 1024, "step": 64}, section=section))
         
 def get_recommended_schedule(sampler_name):
     dic = {}
