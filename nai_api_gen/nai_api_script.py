@@ -672,11 +672,16 @@ class NAIGENScriptBase(scripts.Script):
         if p.negative_prompt: p.negative_prompt = protect_prompt(p.negative_prompt)
         
     def vibe_dir(self):
-        return os.path.join(base_dir,'vibe_encodings')
+        path = os.path.join(base_dir,'vibe_encodings')
+        if not os.path.exists(path): os.mkdir(path)
+        return path
+        
         
     def vibe_image_dir(self):
-        return os.path.join(base_dir,'vibe_images')
-        
+        path = os.path.join(base_dir,'vibe_images')
+        if not os.path.exists(path): os.mkdir(path)
+        return path
+
     def preview_file_name(self, name):
         return re.sub(r"[/\\?%*:|\"<>\x7F\x00-\x1F\.]", "_", name).strip()
         
