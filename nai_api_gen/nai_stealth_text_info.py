@@ -18,17 +18,15 @@ from nai_api_gen.nai_api_settings import get_set_noise_schedule
 from nai_api_gen.nai_api import prompt_to_a1111, prompt_to_nai,tryfloat,get_skip_cfg_above_sigma
 from nai_api_gen import nai_api
     
-original_read_info_from_image = None
-original_resize_image = None
-original_flatten = None
-original_read_info_from_image_stealth = None
-
 try:
     from modules import stealth_infotext
     has_stealth_infotext = True
 except:
     has_stealth_infotext = False
     
+original_read_info_from_image = None
+original_resize_image = None
+original_flatten = None
     
 def script_setup():
     global original_read_info_from_image
@@ -46,12 +44,10 @@ def script_setup():
     original_read_info_from_image = images.read_info_from_image
     original_resize_image = images.resize_image
     original_flatten = images.flatten
-    if has_stealth_infotext: original_read_info_from_image_stealth = stealth_infotext.read_info_from_image_stealth
     
     images.read_info_from_image = read_info_from_image_stealth
     images.resize_image = stealth_resize_image
     images.flatten = stealth_flatten
-    if has_stealth_infotext: stealth_infotext.read_info_from_image_stealth = dummy_stealth_read
     
 
 def script_unload():
@@ -61,11 +57,9 @@ def script_unload():
     if original_read_info_from_image is not None: images.read_info_from_image = original_read_info_from_image
     if original_resize_image is not None: images.resize_image = original_resize_image
     if original_flatten is not None: images.flatten = original_flatten
-    if has_stealth_infotext and original_read_info_from_image_stealth is not None: stealth_infotext.read_info_from_image_stealth = original_read_info_from_image_stealth
     original_read_info_from_image=None
     original_resize_image=None
     original_flatten=None
-    original_read_info_from_image_stealth=None
 
 def stealth_flatten(i,c):
     if has_stealth_pnginfo(i): return i.convert("RGB")
@@ -355,13 +349,21 @@ def read_info_from_image_stealth(image,force_stealth = False):
                 items['parameters'] = image.info['parameters']
                 return process_nai_geninfo(items)
             return process_nai_geninfo(image.info)            
-        geninfo, items = original_read_info_from_image(image)        
-        if geninfo is not None: return geninfo, items        
+        geninfo, items = original_read_info_from_image(image)
+        if geninfo is not None:
+            if items is not None and items.get("Software", None) == "NovelAI": return process_nai_geninfo(items)
+            try:
+                items = json.loads(geninfo)
+                if items is not None and items.get("Software", None) == "NovelAI": return process_nai_geninfo(items)
+            except:
+                pass
+            return geninfo, items
+                
     except Exception as e:
         errors.display(e,'read_info_from_image_stealth')
         geninfo, items = None, {}
         
-    if not shared.opts.data.get("nai_api_png_info_read", True): return geninfo, items
+    if not shared.opts.data.get("nai_api_png_info_read", True) or has_stealth_infotext: return geninfo, items
     # Stealth PNG Info
     width, height = image.size
     pixels = image.load()
@@ -469,10 +471,9 @@ def read_info_from_image_stealth(image,force_stealth = False):
                 decoded_data = byte_data.decode('utf-8', errors='ignore')
             geninfo = decoded_data
             try:
-                import json
                 items = json.loads(decoded_data)
                 if items is not None and items.get("Software", None) == "NovelAI": 
-                    return process_nai_geninfo(items)                
+                    return process_nai_geninfo(items)
             except Exception as e:
                 errors.display(e,'read_info_from_image_stealth')
         except Exception as e:
