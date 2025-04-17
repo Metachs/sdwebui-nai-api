@@ -73,15 +73,25 @@ def stealth_resize_image(resize_mode, im, width, height, upscaler_name=None):
     if has_stealth_pnginfo(im): im = im.convert('RGB')
     return original_resize_image(resize_mode, im, width, height, upscaler_name)
     
-def add_stealth_pnginfo(params: ImageSaveParams):
-    
+def add_stealth_pnginfo(params: ImageSaveParams):    
     nai_api_png_info = shared.opts.data.get("nai_api_png_info", 'NAI Only')
-
     if not params.filename.endswith('.png') or params.pnginfo is None:
         return
     if shared.opts.save_init_img and shared.opts.outdir_init_images and len(shared.opts.outdir_init_images) > 1 and params.filename.startswith(shared.opts.outdir_init_images): return # Do nothing if saving to init image directory
     if params.pnginfo.get("Software", None) == "NovelAI":
-        add_data_nai(params.image, json.dumps(params.pnginfo))    
+        if 'Comment' in params.pnginfo: 
+            try:
+                js_params = json.loads(params.pnginfo['Comment'])   
+                if 'reference_image_multiple' in js_params: 
+                    js_params.pop('reference_image_multiple')
+                    pnginfo = params.pnginfo.copy() 
+                    pnginfo['Comment'] = json.dumps(js_params)
+                    add_data_nai(params.image, json.dumps(pnginfo)) 
+                    return  
+            except Exception as e:
+                print(e)
+
+        add_data_nai(params.image, json.dumps(params.pnginfo))  
         return
     if 'parameters' not in params.pnginfo:
         return
