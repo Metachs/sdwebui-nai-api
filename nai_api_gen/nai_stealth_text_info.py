@@ -21,11 +21,20 @@ from nai_api_gen import nai_api
 original_read_info_from_image = None
 original_resize_image = None
 original_flatten = None
+original_read_info_from_image_stealth = None
+
+try:
+    from modules import stealth_infotext
+    has_stealth_infotext = True
+except:
+    has_stealth_infotext = False
+    
     
 def script_setup():
     global original_read_info_from_image
     global original_resize_image
     global original_flatten
+    global original_read_info_from_image_stealth
     
     script_callbacks.on_before_image_saved(add_stealth_pnginfo)
     script_callbacks.on_after_component(on_after_component_change_pnginfo_image_mode)
@@ -37,10 +46,13 @@ def script_setup():
     original_read_info_from_image = images.read_info_from_image
     original_resize_image = images.resize_image
     original_flatten = images.flatten
+    if has_stealth_infotext: original_read_info_from_image_stealth = stealth_infotext.read_info_from_image_stealth
     
     images.read_info_from_image = read_info_from_image_stealth
     images.resize_image = stealth_resize_image
     images.flatten = stealth_flatten
+    if has_stealth_infotext: stealth_infotext.read_info_from_image_stealth = dummy_stealth_read
+    
 
 def script_unload():
     global original_read_info_from_image
@@ -49,9 +61,11 @@ def script_unload():
     if original_read_info_from_image is not None: images.read_info_from_image = original_read_info_from_image
     if original_resize_image is not None: images.resize_image = original_resize_image
     if original_flatten is not None: images.flatten = original_flatten
+    if has_stealth_infotext and original_read_info_from_image_stealth is not None: stealth_infotext.read_info_from_image_stealth = original_read_info_from_image_stealth
     original_read_info_from_image=None
     original_resize_image=None
     original_flatten=None
+    original_read_info_from_image_stealth=None
 
 def stealth_flatten(i,c):
     if has_stealth_pnginfo(i): return i.convert("RGB")
@@ -325,6 +339,9 @@ def has_stealth_pnginfo(image):
                 else:
                     return False
     return False
+
+def dummy_stealth_read(image):
+    return None
 
 def read_info_from_image_stealth(image,force_stealth = False):
     # Standard Metadata
