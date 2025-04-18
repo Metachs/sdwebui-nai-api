@@ -87,7 +87,7 @@ def add_stealth_pnginfo(params: ImageSaveParams):
                     pnginfo = params.pnginfo.copy() 
                     pnginfo['Comment'] = json.dumps(js_params)
                     add_data_nai(params.image, json.dumps(pnginfo)) 
-                    return  
+                    return
             except Exception as e:
                 print(e)
 
@@ -249,6 +249,17 @@ def process_nai_geninfo(items):
     if 'NovelAI Diffusion V4' in model and legv4 is None: add('legacy_uc',value="true")
     
     add('smea',quote=True, value = "DYN" if str(j.get('sm_dyn','false')).lower() =='true' else "SMEA" if str(j.get('sm','false')).lower()=='true' else "Off")
+    
+    for i,e in enumerate(j.get('reference_image_multiple',[])):
+        add(f'Vibe ID {i+1}', value = e,quote=True)
+        add(f'Vibe On {i+1}', value = True,quote=True)
+        
+    for i,e in enumerate(j.get('reference_strength_multiple',[])):
+        add(f'Vibe Strength {i+1}', value = e,quote=True)
+        
+    for i,e in enumerate(j.get('reference_information_extracted_multiple',[])):
+        add(f'Vibe IE {i+1}', value = e,quote=True)
+        
     return geninfo, items
 
 

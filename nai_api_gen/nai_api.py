@@ -223,6 +223,29 @@ vibe_model_names = {
     NAIv4cp:"v4curated",
 }
 
+def create_encoding_file(encoding, model, name = None):
+    hash = hashlib.sha256(encoding.encode()).hexdigest()
+    if not name: name = f"{hash[:6]}-{hash[-6:]}"
+    vmodel = vibe_model_names.get(model, 'v4full')
+    file = {
+        "identifier": "novelai-vibe-transfer",
+        "version": 1,
+        "type": "encoding",
+        "id": hash,
+        "encodings": {
+            vmodel: {
+                "unknown": {
+                    "encoding": encoding,
+                    "params": {}
+                }
+            }
+        },
+        "name": name,
+        "createdAt": int(time.time()),
+    }
+    return file
+
+
 def create_vibe_file(reference_image, name = None):
     image = None
     if isinstance(reference_image, Image.Image):
@@ -317,18 +340,12 @@ def get_closest_encoding(vibe_file,information_extracted,model):
     
     for v in encodings.values():
         ie = tryfloat(v.get('params',{}).get('information_extracted',None))
-        if ie is not None:
-            if close is None or abs(ie - information_extracted) < abs(close - information_extracted):
-                close = ie
-                best = v
+        if close is None or ie is not None and abs(ie - information_extracted) < abs(close - information_extracted):
+            close = ie
+            best = v
                 
     return best.get('encoding', None) if best is not None else None, close
-            
-        
-    
-        
 
-    
 def get_vibe_ie(vibe_file, model, defaultvalue = 1.0):
     if model not in vibe_model_names:
         print("Unknown Model, could not add encoding")
@@ -487,8 +504,7 @@ def prompt_to_nai(p, parenthesis_only = False):
     dx = ']'
     uo = '('
     ux = ')'
-    e=':'
-    
+    e=':'    
     
     def addtext(i, end,prefix = "", suffix = ""):
         nonlocal out
@@ -561,7 +577,6 @@ def prompt_to_nai(p, parenthesis_only = False):
     if start<len(p): addtext(len(p),len(p))
     if not parenthesis_only: out = out.replace("\\(","(").replace("\\)",")")
     return out
-
 
 def prompt_to_a1111(p):
     p = re.sub("\\\\\\\\","\\\\",p) #remove escaped slashes
