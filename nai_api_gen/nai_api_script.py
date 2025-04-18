@@ -542,9 +542,10 @@ class NAIGENScriptBase(scripts.Script):
                         
             if source_image: add_image(source_image)
             
-            if not vibes and vibe_name:
-                vibe = self.find_vibe_file(vibe_name)
-                if vibe: vibes[vibe['id']] = vibe
+            if vibe_name:
+                vibes = self.find_vibe_files(vibe_name)
+                for vibe in vibes:
+                    vibes[vibe['id']] = vibe
 
             args = list(args)
             
@@ -752,7 +753,7 @@ class NAIGENScriptBase(scripts.Script):
         id = dest.get("id","")
         if 'image' in dest and type != 'encoding' and name:
             format = Image.registered_extensions()['.png']
-            path = os.path.join(self.vibe_preview_dir(), f"{self.preview_file_name(name)}.{id}.png")
+            path = os.path.join(self.vibe_preview_dir(), f"{self.preview_file_name(name)} .{id}.png")
             if self.vibe_preview_dir() and not os.path.exists(path):
                 pnginfo = PngImagePlugin.PngInfo()
                 pnginfo.add_text('naivibeid', id)
@@ -792,33 +793,25 @@ class NAIGENScriptBase(scripts.Script):
     def rename_vibe_file(self, id, newname):
         if not newname: newname = f"{id[:6]}-{id[-6:]}"
         dest = self.load_vibe_file_by_id(id)
-        
         if not dest:
             print("Could Not Rename")
             return 
-            
         name = dest.get("name","")
-        if name == newname: return
-        
+        if name == newname: return        
         is_encoding = dest["type"] == 'encoding'
         path = os.path.join(self.vibe_dir(is_encoding),id + '.naiv4vibe')
-
-        dest['name'] = name
-        
+        dest['name'] = newname        
         with open(path,'w') as file:
-            file.write(json.dumps(dest,separators=(',\n', ': ')))
-            
-        if is_encoding or self.preview_file_name(name).lower() != self.preview_file_name(newname).lower(): return
-        
+            file.write(json.dumps(dest,separators=(',\n', ': ')))            
+        if is_encoding or self.preview_file_name(name).lower() == self.preview_file_name(newname).lower(): return        
         try:
-            path = os.path.join(self.vibe_preview_dir(), f"{self.preview_file_name(name)}.{id}.png")
+            path = os.path.join(self.vibe_preview_dir(), f"{self.preview_file_name(name)} .{id}.png")
             if self.vibe_preview_dir() and os.path.exists(path): os.remove(path)
             path = os.path.join(self.vibe_dir(), f"{id}.png")
             if os.path.exists(path): os.remove(path)
         except Exception as e:
             print (e)
-        self.save_vibe_images(dest)
-        
+        self.save_vibe_images(dest)        
         return
         
     def load_vibe_file_by_id(self, id):        
@@ -835,7 +828,30 @@ class NAIGENScriptBase(scripts.Script):
         path2 = os.path.join(self.vibe_dir(True), id + '.naiv4vibe')
         if path != path2 and os.path.exists(path2): return path2
         return None        
-            
+
+    def find_vibe_files(self, name):
+        vibe = self.load_vibe_file_by_id(name)
+        if vibe: return [vibe]
+        filename = self.preview_file_name(name).lower()        
+        vibes = []        
+        def check_path(path):
+            for f in os.listdir(path):
+                if not f.lower().endswith('.naiv4vibe'): continue
+                file = os.path.join(path, f)
+                if not os.path.isfile(file): continue                
+                try:
+                    with open(file,'r') as naiv4vibe: 
+                        js = json.loads(naiv4vibe.read())
+                        if self.preview_file_name(js.get('name',"")).lower()==filename:
+                            vibes.append(js)
+                except Exception as e:
+                    print("Error Reading naiv4vibe",e)
+                    
+        check_path(self.vibe_dir())
+        if self.vibe_dir()!=self.vibe_dir(True):
+            check_path(self.vibe_dir(True))
+        return vibes
+
     def find_vibe_file(self, name):
         vibe = self.load_vibe_file_by_id(name)
         if vibe: return vibe
@@ -858,7 +874,7 @@ class NAIGENScriptBase(scripts.Script):
                 with open(file,'r') as naiv4vibe: 
                     try:
                         js = json.loads(naiv4vibe.read())
-                        if self.preview_file_name(js.get('name',"")).lower()==name:
+                        if self.preview_file_name(js.get('name',"")).lower()==filename:
                             return js
                     except Exception as e:
                         print("Error Reading naiv4vibe",e)

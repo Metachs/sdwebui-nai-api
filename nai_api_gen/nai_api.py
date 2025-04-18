@@ -852,8 +852,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
                 imgs.append(img)
                 rextracts.append(tryfloat(rextract, 1.0))
                 rstrengths.append(tryfloat(rstrength, 0.6))
-        if normalize_reference_strength_multiple and sum(rstrengths)>1.0:
-            total = sum(rstrengths)
+        if normalize_reference_strength_multiple and sum(abs(n) for n in rstrengths)>1.0:
+            total = sum(abs(n) for n in rstrengths)
             rstrengths = [f/total for f in rstrengths]
             
         if imgs is not None: 
