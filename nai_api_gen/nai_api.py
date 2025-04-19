@@ -242,9 +242,17 @@ def create_encoding_file(encoding, model, name = None):
         },
         "name": name,
         "createdAt": int(time.time()),
-    }
+    }   
     return file
 
+
+def create_vibe_bundle(vibes):
+    file = {
+        "identifier": "novelai-vibe-transfer-bundle",
+        "version": 1,
+        "vibes": vibes or [],
+    }
+    return file
 
 def create_vibe_file(reference_image, name = None):
     image = None
@@ -328,6 +336,22 @@ def get_encoding(vibe_file,information_extracted,model):
     paramkey = hashlib.sha256(paramkey.encode()).hexdigest()
     return encodings.get(paramkey, {}).get('encoding', None)
     
+def get_closest_ie(vibe_file,information_extracted,model, default = 1.0):
+    if model not in vibe_model_names:
+        print("Unknown Model, could not add encoding")
+        return False
+    vmodel = vibe_model_names[model]
+    encodings =vibe_file['encodings'].get(vmodel,{})
+    
+    close = None
+    
+    for v in encodings.values():
+        ie = tryfloat(v.get('params',{}).get('information_extracted',None))
+        if close is None or ie is not None and abs(ie - information_extracted) < abs(close - information_extracted):
+            close = ie
+                
+    return close or default
+    
 def get_closest_encoding(vibe_file,information_extracted,model):
     if model not in vibe_model_names:
         print("Unknown Model, could not add encoding")
@@ -358,6 +382,13 @@ def get_vibe_ie(vibe_file, model, defaultvalue = 1.0):
             if i is not None: return i
     return defaultvalue
     
+def get_vibe_presets(vibe, model):
+    info = vibe.get('importInfo', None)
+    if not info: return get_vibe_ie(vibe, model),0.6
+    str = info.get('strength',0.6)
+    ie = info.get('information_extracted', None)
+    if ie is None or info.get('model', model) != model: return 1.0, str
+    return ie, str
 
 def add_encoding(key, vibe_file, information_extracted = 1.0, model = "nai-diffusion-4-full"):
     if model not in vibe_model_names:
