@@ -483,12 +483,12 @@ class NAIGENScriptBase(scripts.Script):
                 id = enabled[i]
                 if not id: slots.append(i)
                 
-            if len(vibes) > len(slots): print ("Not Enough Empty Slots")                    
-            slots.sort(reverse=True)                
+            if len(vibes) > len(slots): print ("Not Enough Empty Slots")
+            slots.sort(reverse=True)
             for k,v in vibes.items():
                 if not slots: break
                 i = slots.pop()
-                ids[i] = k
+                ids[i] = '*'+k
                 enabled[i] = True
                     
         def CreateVibe4(model, source_image, vibe_name, *args):
@@ -502,7 +502,7 @@ class NAIGENScriptBase(scripts.Script):
             
             vibe = None
             
-            if 'naivibeid' in source_image.info: vibe = self.load_vibe_file_by_id(source_image.info['naivibeid'])                    
+            if 'naivibeid' in source_image.info: vibe = self.load_vibe_file_by_id(source_image.info['naivibeid'])
             if not vibe: vibe = nai_api.create_vibe_file(source_image,vibe_name)
             AddVibes(model,{vibe['id']:vibe},ids,enabled)                    
             return [*ids, *enabled]
@@ -557,11 +557,7 @@ class NAIGENScriptBase(scripts.Script):
             
             # print([*ids, *enabled])
             return [None, *ids, *enabled]            
-        
-        # def MoveUp(i, *args):
-            # if i == 0: return args
-            # fields = 
-            
+                    
         vibe_fields4,vibes_v4,normalize_reference_strength_multiple,source_image,vibe_file,vibe_name,create_vibe,load_vibe, *extra_fields = self.vibe_v4_main_ui(model)
 
         load_vibe.click(fn= LoadVibe4, inputs=[model,vibe_file, source_image, vibe_name, *vibe_fields4[0] , *vibe_fields4[3] ], outputs=[vibe_file,*vibe_fields4[0], *vibe_fields4[3]])
@@ -597,7 +593,7 @@ class NAIGENScriptBase(scripts.Script):
                     load_vibe = gr.Button("Load From File/Image/ID/Name")
             dovibe4(0)          
             
-            download_dd_vibe = gr.Dropdown(value="Download...", choices= ["Download...", 'Individual Encodings', 'Bundled Encodings', 'Embed in Images', 'Embed Bundle in Source Image'],type="index", label="Mode",show_label=False)
+            download_dd_vibe = gr.Dropdown(value="Download...", choices= ["Download...", 'Individual Encodings', 'Bundled Encodings', 'Embed in Images', 'Embed Bundle in Source Image', 'Try Match Encoding Only Vibes to Source'],type="index", label="Mode",show_label=False)
             
             vibe_file_dl = gr.File(label = "Downloads",file_count='multiple', interactive=True,visible = False)
             vibe_file_dl.clear(fn=lambda:gr.update(visible=False) , outputs = [vibe_file_dl], show_progress=False)
@@ -608,13 +604,36 @@ class NAIGENScriptBase(scripts.Script):
             args = list(args)
             ids, ies, sts, ens = [args[i*self.vibe_count_v4:(i+1)*self.vibe_count_v4] for i in range(4)]
             
-            print (mode,ids, ies, sts, ens)
+            if mode == 5:                
+                es = [None]*self.vibe_count_v4 
+                found = 0
+                for i,v in enumerate([self.load_vibe_file_by_id(id) for id in ids]):
+                    if not v or v.get('type',None) != 'encoding': continue
+                    es[i] = list(list(v['encodings'].values())[0].values())[0]['encoding']
+                path = self.vibe_dir()
+                for f in os.listdir(path):
+                    if not f.lower().endswith('.naiv4vibe'): continue
+                    file = os.path.join(path, f)
+                    if not os.path.isfile(file): continue                
+                    try:
+                        with open(file,'r') as naiv4vibe: 
+                            js = json.loads(naiv4vibe.read())
+                            if js.get('type',None) != 'image': continue
+                            for e in [e['encoding'] for m in js.get('encodings', {}).values() for e in m.values()]:
+                                if e and e in es:
+                                    ids[es.index(e)] = js['id']
+                                    found+=1
+                                    break
+                    except Exception as e:
+                        print("Error Reading naiv4vibe",e)
+                return gr.update(value=f"Found {found}"), gr.update(value=[], visible = False), *ids
+            
             vibes = [self.load_vibe_file_by_id(id) if ens[i] else None for i,id in enumerate(ids)]
             
             for i in range(len(ids)-1,-1,-1):
                 if vibes[i]:
-                    ies[i] = nai_api.get_closest_ie(vibes[i], ies[i], model, None)                    
-                if not vibes[i] or not ies[i]:
+                    ies[i] = nai_api.get_closest_ie(vibes[i], ies[i], model, None)
+                if not vibes[i] or not ies[i] and vibes[i]['type'] != 'encoding':
                     vibes.pop(i)
                 else:
                     vibes[i]['importInfo'] = {
@@ -624,7 +643,7 @@ class NAIGENScriptBase(scripts.Script):
                     }
                     
             # vibes = [vibe for vibe in (self.load_vibe_file_by_id(id) for id in ids) if vibe]
-            if not vibes: return 0, gr.update()
+            if not vibes: return "Nothing to download...", gr.update(), *([gr.update()]*self.vibe_count_v4)
             paths= []
             files = []
             match mode:
@@ -656,17 +675,17 @@ class NAIGENScriptBase(scripts.Script):
                         embed_image.convert("RGBA").save(t, format='PNG', pnginfo=pnginfo)
                         paths.append(t.name)
                 case _:
-                    return 0, gr.update()
+                    return "Download...", gr.update(), *([gr.update()]*self.vibe_count_v4)
                     
             for name, file in files:
                 t = tempfile.NamedTemporaryFile(delete=False, prefix=name, suffix=".naiv4vibebundle")
                 t.write(json.dumps(file).encode())
                 paths.append(t.name)
                 
-            return gr.update(value=0), gr.update(value =paths, visible = True)
+            return "Download...", gr.update(value =paths, visible = True), *([gr.update()]*self.vibe_count_v4)
                         
                 
-        download_dd_vibe.change(fn= vibe_v4_dl, inputs = [model,download_dd_vibe,source_image,*vibe_fields4[0],*vibe_fields4[1],*vibe_fields4[2],*vibe_fields4[3] ], outputs = [download_dd_vibe, vibe_file_dl])
+        download_dd_vibe.change(fn= vibe_v4_dl, inputs = [model,download_dd_vibe,source_image,*vibe_fields4[0],*vibe_fields4[1],*vibe_fields4[2],*vibe_fields4[3] ], outputs = [download_dd_vibe, vibe_file_dl,*vibe_fields4[0]])
             
         return vibe_fields4,vibes_v4,normalize_reference_strength_multiple,source_image,vibe_file,vibe_name,create_vibe,load_vibe
     
@@ -719,7 +738,12 @@ class NAIGENScriptBase(scripts.Script):
             return gr.update()
             
         def UpdateVibe4(model,vid,vname,preview_image,*args):
-            if not vid: return gr.update(), gr.update(visible=False), "", gr.update(value=None, visible = False), gr.update(interactive=True), gr.update(), gr.update(visible = False)           
+            if not vid: return gr.update(), gr.update(visible=False), "", gr.update(value=None, visible = False), gr.update(interactive=True), gr.update(), gr.update(visible = False)
+            is_new=False
+            if vid.startswith('*'):
+                is_new=True
+                vid = vid[1:]
+                
             #ludicrously long id is probably a whole encoding. 
             if len(vid)> 2560:
                 vibe = self.vibe_create_encoding(vid,model)
@@ -739,7 +763,7 @@ class NAIGENScriptBase(scripts.Script):
                 preview_image = nai_api.get_vibe_preview(vibe)
                 mk = nai_api.vibe_model_names[str(model).lower()]
                 vname=vibe['name']
-                ieval, strval = nai_api.get_vibe_presets(vibe,model)
+                if is_new: ieval, strval = nai_api.get_vibe_presets(vibe,model)
                 ie = gr.update(interactive= not is_encoding, value = ieval)
 
             return vid, gr.update(visible=True), vname,gr.update(value=preview_image, visible = True), ie, gr.update() if strval is None else strval,gr.update(visible = not is_encoding and ieval is None)
