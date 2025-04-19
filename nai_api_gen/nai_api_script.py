@@ -545,8 +545,7 @@ class NAIGENScriptBase(scripts.Script):
             if source_image: add_image(source_image)
             
             if vibe_name:
-                vibes = self.find_vibe_files(vibe_name)
-                for vibe in vibes:
+                for vibe in self.find_vibe_files(vibe_name):
                     vibes[vibe['id']] = vibe
 
             args = list(args)
