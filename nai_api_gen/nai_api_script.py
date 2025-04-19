@@ -488,7 +488,7 @@ class NAIGENScriptBase(scripts.Script):
             for k,v in vibes.items():
                 if not slots: break
                 i = slots.pop()
-                ids[i] = '*'+k
+                ids[i] = '*'+k # * Prefix indicates preset str/ie values should be loaded
                 enabled[i] = True
                     
         def CreateVibe4(model, source_image, vibe_name, *args):
@@ -737,7 +737,7 @@ class NAIGENScriptBase(scripts.Script):
                 return gr.update(visible = False)
             return gr.update()
             
-        def UpdateVibe4(model,vid,vname,preview_image,*args):
+        def UpdateVibe4(model,vid,reference_information_extracted,vname,preview_image,*args):
             if not vid: return gr.update(), gr.update(visible=False), "", gr.update(value=None, visible = False), gr.update(interactive=True), gr.update(), gr.update(visible = False)
             is_new=False
             if vid.startswith('*'):
@@ -764,8 +764,8 @@ class NAIGENScriptBase(scripts.Script):
                 mk = nai_api.vibe_model_names[str(model).lower()]
                 vname=vibe['name']
                 if is_new: ieval, strval = nai_api.get_vibe_presets(vibe,model)
+                else: ieval = nai_api.get_closest_ie(vibe,reference_information_extracted,model,1.0) 
                 ie = gr.update(interactive= not is_encoding, value = ieval)
-
             return vid, gr.update(visible=True), vname,gr.update(value=preview_image, visible = True), ie, gr.update() if strval is None else strval,gr.update(visible = not is_encoding and ieval is None)
                 
         def UpdateVibeIE4(model,vid,reference_information_extracted,*args):
@@ -780,7 +780,7 @@ class NAIGENScriptBase(scripts.Script):
             return gr.update(interactive = True), gr.update(visible = not has_encoding)
 
         
-        vid.change(fn = UpdateVibe4, inputs = [model,vid,vname,preview_image], outputs = [vid,group, vname,preview_image,reference_information_extracted,reference_strength,encodebutton])
+        vid.change(fn = UpdateVibe4, inputs = [model,vid, reference_information_extracted,vname,preview_image], outputs = [vid,group, vname,preview_image,reference_information_extracted,reference_strength,encodebutton])
         vname.input(lambda: gr.update(visible = True), outputs = [rename])
         remove.click(fn=lambda:"", outputs=[vid])
         rename.click(fn=RenameVibe4, inputs = [vid, vname, model, reference_information_extracted,reference_strength], outputs=[rename])
