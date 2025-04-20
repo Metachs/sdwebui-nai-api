@@ -382,12 +382,12 @@ def get_vibe_ie(vibe_file, model, defaultvalue = 1.0):
             if i is not None: return i
     return defaultvalue
     
-def get_vibe_presets(vibe, model):
+def get_vibe_presets(vibe, model, str_def = 0.6, ie_def = 1.0):
     info = vibe.get('importInfo', None)
-    if not info: return get_vibe_ie(vibe, model),0.6
-    str = info.get('strength',0.6)
+    if not info: return get_vibe_ie(vibe, model,ie_def),str_def
+    str = info.get('strength',str_def)
     ie = info.get('information_extracted', None)
-    if ie is None or info.get('model', model) != model: return 1.0, str
+    if ie is None or info.get('model', model) != model: return ie_def, str
     return ie, str
 
 def add_encoding(key, vibe_file, information_extracted = 1.0, model = "nai-diffusion-4-full"):

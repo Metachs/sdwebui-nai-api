@@ -64,8 +64,8 @@ class NAIGENScriptBase(scripts.Script):
         self.cfg = 0
         self.steps = 0
         self.strength = 0
-        self.vibe_count = shared.opts.data.get('nai_api_vibe_v4_count',4)
-        self.vibe_count_v4 = shared.opts.data.get('nai_api_vibe_count',4)
+        self.vibe_count = shared.opts.data.get('nai_api_vibe_count',4)
+        self.vibe_count_v4 = shared.opts.data.get('nai_api_vibe_v4_count',4)
         self.vibe_field_count = self.vibe_count*3
         self.vibe_field_count_v4 = self.vibe_count_v4*4
         self.last_request_time = 0
@@ -527,10 +527,9 @@ class NAIGENScriptBase(scripts.Script):
 
             def add_image(img):
                 if 'naidata' not in img.info or not add_json(base64.b64decode(img.info['naidata'].encode())):
-                    id = img.info.get('naivibeid', None)
-                    if id:
-                        vf = self.load_vibe_file_by_id(id)
-                        if vf: vibes[vf['id']]= vf
+                    vf = self.load_vibe_file_by_id(img.info.get('naivibeid', None) or nai_api.create_vibe_file(img)['id'])
+                    if vf: 
+                        vibes[vf['id']] = vf
                         return
                 #TODO: Load Vibe from NAI/SDWEBUI Metadata
 
@@ -587,11 +586,17 @@ class NAIGENScriptBase(scripts.Script):
                 with gr.Row():                        
                     vibe_file = gr.File(label = "Load Vibe Files",file_count='multiple', type='binary', file_types=['naiv4vibebundle','naiv4vibe','png'],min_width=100)
                     source_image = gr.Image(label=f"Source Image", elem_id=f"vibe_src_image_{elempfx}", show_label=True, source="upload", interactive=True, type="pil", tool="editor", image_mode="RGBA",min_width=100)
-                vibe_name = gr.Text(label = "Name/ID")
-                with gr.Row():     
-                    create_vibe= gr.Button("Create Vibe")
-                    load_vibe = gr.Button("Load From File/Image/ID/Name")
-            dovibe4(0)          
+                with gr.Row():
+                    # with gr.Column():
+                    vibe_name = gr.Textbox(label = "Name/ID",scale =100,max_lines=1,container=True, placeholder="Name/ID", show_label=False)
+                    load_vibe = ToolButton(ui.paste_symbol, elem_id=f"load_vibe_{elempfx}",scale =1, tooltip="Load Existing Vibe from Name/ID or Image")
+                    create_vibe = ToolButton('🖼️', elem_id=f"create_vibe_{elempfx}",scale =1, tooltip="Create New Vibe from Image")
+                    # create_vibe= gr.Button("Create Vibe")
+                    # load_vibe = gr.Button("Load From File/Image/ID/Name")
+                    # create_vibe= gr.Button("Create Vibe")
+                    # load_vibe = gr.Button("Load From File/Image/ID/Name")
+            with gr.Accordion(label=f'Reference Images', open=True):
+                dovibe4(0)          
             
             download_dd_vibe = gr.Dropdown(value="Download...", choices= ["Download...", 'Individual Encodings', 'Bundled Encodings', 'Embed in Images', 'Embed Bundle in Source Image', 'Try Match Encoding Only Vibes to Source'],type="index", label="Mode",show_label=False)
             
@@ -705,12 +710,13 @@ class NAIGENScriptBase(scripts.Script):
                 
             vid =gr.Textbox(label=f"V{idx} ID:", visible = False, value = "",container=False)
             with gr.Row(variant="compact"):
-                with gr.Column(min_width=64,scale= 3):
-                    reference_strength=gr.Slider(minimum=-1.0, maximum=1.0, step=0.01, label=f'Reference Strength {idx}', value=0.6,min_width=64)
-                    reference_information_extracted = gr.Slider(minimum=0.0, maximum=1.0, step= 0.01, label=f'Info Extracted {idx}', value=1.0,min_width=64)
+                with gr.Column(min_width=64,scale= 4):
+                    with gr.Row(variant="compact"):
+                        reference_strength=gr.Slider(minimum=-1.0, maximum=1.0, step=0.01, label=f'Reference Strength', elem_id=f"v4_str_{idx}_{elempfx}", value=0.6,min_width=64)
+                        reference_information_extracted = gr.Slider(minimum=0.0, maximum=1.0, step= 0.01, label=f'Information Extracted', elem_id=f"v4_ie_{idx}_{elempfx}", value=1.0,min_width=64)
                     encodebutton = gr.Button("Generate: -2 Anals", visible = False)
                 # with gr.Column(min_width=64):
-                preview_image = gr.Image(label=f"Preview Image {idx}", elem_id=f"preview_image_{idx}_{elempfx}", show_label=False,visible = False,  interactive=False, type="pil", tool="editor", image_mode="RGBA",min_width=100,scale= 2)
+                preview_image = gr.Image(label=f"Preview Image {idx}", elem_id=f"preview_image_{idx}_{elempfx}", show_label=False,visible = True,  interactive=False, type="pil", tool="editor", image_mode="RGBA",min_width=64,scale= 1)
                 
             # dl.click(fn = lambda vid: self.find_vibe_path_by_id(vid), inputs = [vid], ouptuts = [dl])
         
@@ -738,7 +744,7 @@ class NAIGENScriptBase(scripts.Script):
             return gr.update()
             
         def UpdateVibe4(model,vid,reference_information_extracted,vname,preview_image,*args):
-            if not vid: return gr.update(), gr.update(visible=False), "", gr.update(value=None, visible = False), gr.update(interactive=True), gr.update(), gr.update(visible = False)
+            if not vid: return gr.update(), gr.update(visible=False), "", gr.update(value=None), gr.update(interactive=True), gr.update(), gr.update(visible = False)
             is_new=False
             if vid.startswith('*'):
                 is_new=True
@@ -763,10 +769,10 @@ class NAIGENScriptBase(scripts.Script):
                 preview_image = nai_api.get_vibe_preview(vibe)
                 mk = nai_api.vibe_model_names[str(model).lower()]
                 vname=vibe['name']
-                if is_new: ieval, strval = nai_api.get_vibe_presets(vibe,model)
-                else: ieval = nai_api.get_closest_ie(vibe,reference_information_extracted,model,1.0) 
-                ie = gr.update(interactive= not is_encoding, value = ieval)
-            return vid, gr.update(visible=True), vname,gr.update(value=preview_image, visible = True), ie, gr.update() if strval is None else strval,gr.update(visible = not is_encoding and ieval is None)
+                if is_new: ieval, strval = nai_api.get_vibe_presets(vibe,model,None, None)
+                else: ieval = nai_api.get_closest_ie(vibe,reference_information_extracted,model,None) 
+                ie = gr.update(interactive= not is_encoding, value = ieval or 1.0)
+            return vid, gr.update(visible=True), vname,gr.update(value=preview_image), ie, gr.update() if strval is None else strval,gr.update(visible = not is_encoding and ieval is None)
                 
         def UpdateVibeIE4(model,vid,reference_information_extracted,*args):
             if len(vid)> 2560: return gr.update(), gr.update(visible=False)
