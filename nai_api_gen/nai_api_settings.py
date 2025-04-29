@@ -24,12 +24,16 @@ def on_ui_settings():
     addopt('nai_api_png_info_read', shared.OptionInfo(True, "Read Stealth PNG Info from images",gr.Checkbox, section=section))
         
     addopt('nai_api_vibe_v4_count', shared.OptionInfo(4, "Maximum Number of Vibe Transfer Images for v4, opus limit=4, Requires Restart",gr.Slider, {"minimum":  1, "maximum": 32, "step": 1}, section=section))
-    
+
+    addopt('nai_api_use_v4_for_v3', shared.OptionInfo(True, "Allow using v4 Vibe interface with other models",gr.Checkbox, section=section))
+
     addopt('nai_api_vibe_v4_directory', shared.OptionInfo('', "Directory where v4 Vibe Image Encodings are cached, uses 'vibe_encodings' in this extension's directory by default.", gr.Textbox, section=section))
     
     addopt('nai_api_vibe_v4_encoding_directory', shared.OptionInfo('', "Directory where imageless v4 Vibe Encodings are cached, uses same directory as Image encodings if unspecified.", gr.Textbox, section=section))
     
     addopt('nai_api_vibe_v4_preview_directory', shared.OptionInfo('', "Directory for full size v4 preview images, does NOT store encodings, only provides a way to view image with a custom name for loading into sdwebui.", gr.Textbox, section=section))
+    
+    
     
     addopt('nai_api_vibe_count', shared.OptionInfo(4, "Maximum Number of Vibe Transfer Images, Requires Restart",gr.Slider, {"minimum":  1, "maximum": 32, "step": 1}, section=section))
     

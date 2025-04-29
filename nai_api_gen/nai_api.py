@@ -315,7 +315,6 @@ def get_vibe_preview(vibe_file):
 
 def has_encoding(vibe_file,information_extracted,model):
     if model not in vibe_model_names:
-        print("Unknown Model, could not add encoding")
         return False
     vmodel = vibe_model_names[model]
     encodings =vibe_file['encodings'].get(vmodel,{})
@@ -327,8 +326,8 @@ def has_encoding(vibe_file,information_extracted,model):
     
 def get_encoding(vibe_file,information_extracted,model):
     if model not in vibe_model_names:
-        print("Unknown Model, could not add encoding")
-        return False
+        print("Unknown Model, could not get_encoding")
+        return None
     vmodel = vibe_model_names[model]
     encodings =vibe_file['encodings'].get(vmodel,{})
     params = {'information_extracted':information_extracted}     
@@ -338,8 +337,7 @@ def get_encoding(vibe_file,information_extracted,model):
     
 def get_closest_ie(vibe_file,information_extracted,model, default = 1.0):
     if model not in vibe_model_names:
-        print("Unknown Model, could not add encoding")
-        return False
+        return default
     vmodel = vibe_model_names[model]
     encodings =vibe_file['encodings'].get(vmodel,{})
     
@@ -352,10 +350,10 @@ def get_closest_ie(vibe_file,information_extracted,model, default = 1.0):
                 
     return close or default
     
-def get_closest_encoding(vibe_file,information_extracted,model):
+def get_closest_encoding(vibe_file,information_extracted,model, default = 1.0):
     if model not in vibe_model_names:
-        print("Unknown Model, could not add encoding")
-        return False
+        print("Unknown Model, could not get_closest_encoding")
+        return None, default
     vmodel = vibe_model_names[model]
     encodings =vibe_file['encodings'].get(vmodel,{})
     
@@ -372,8 +370,8 @@ def get_closest_encoding(vibe_file,information_extracted,model):
 
 def get_vibe_ie(vibe_file, model, defaultvalue = 1.0):
     if model not in vibe_model_names:
-        print("Unknown Model, could not add encoding")
-        return False
+        print("Unknown Model, could not get_vibe_ie")
+        return defaultvalue
     vmodel = vibe_model_names[model]
     encodings =vibe_file['encodings'].get(vmodel,{})
     if encodings: 
