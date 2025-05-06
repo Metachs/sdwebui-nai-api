@@ -19,13 +19,14 @@ NAIv2 = "nai-diffusion-2"
 NAIv3 = "nai-diffusion-3"
 NAIv3f = "nai-diffusion-furry-3"
 NAIv4cp = "nai-diffusion-4-curated-preview"
+NAIv45cp = "nai-diffusion-4-5-curated"
 NAIv4f = "nai-diffusion-4-full"
 NAIv4 = "nai-diffusion-4-full"
 
 NAI_IMAGE_URL = 'https://image.novelai.net/ai/generate-image'
 NAI_AUGMENT_URL = 'https://image.novelai.net/ai/augment-image'
 
-nai_models = [NAIv4f,NAIv4cp,NAIv3,NAIv3f,NAIv2]
+nai_models = [NAIv4f,NAIv45cp,NAIv4cp,NAIv3,NAIv3f,NAIv2]
 
 NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde","k_dpmpp_2m_sde"]
 noise_schedules = ["exponential","polyexponential","karras","native"]
@@ -736,7 +737,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     
     if model not in nai_models: model = NAIv3
     
-    isV4 = model == NAIv4cp or model == NAIv4f
+    isV4 = model == NAIv4cp or model == NAIv4f or model == NAIv45cp
     isV3plus = model == NAIv3 or model == NAIv3f or isV4
     
     if isV4 and text_tag is None and nai_text_tag in prompt:
@@ -775,6 +776,9 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         if model == NAIv3:
             tags = 'best quality, amazing quality, very aesthetic, absurdres'
             if tags not in prompt: prompt = f'{prompt}, {tags}'
+        elif model == NAIv45cp:
+            tags = 'location, masterpiece, no text, -0.8::feet::, rating:general'
+            if tags not in prompt: prompt = f'{prompt}, {tags}'
         elif model == NAIv4cp:
             tags = 'rating:general, best quality, very aesthetic, absurdres'
             if tags not in prompt: prompt = f'{prompt}, {tags}'
@@ -799,6 +803,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     if ucPreset == 2:
         if model == NAIv3:
             tags = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], bad anatomy, bad hands, @_@, mismatched pupils, heart-shaped pupils, glowing eyes'
+        elif model == NAIv45cp:
+            tags = 'blurry, lowres, upscaled, artistic error, film grain, scan artifacts, bad anatomy, bad hands, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, @_@, mismatched pupils, glowing eyes, negative space, blank page'
         else:
             ucPreset = 0
 
@@ -809,6 +815,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             tags = '{{worst quality}}, [displeasing], {unusual pupils}, guide lines, {{unfinished}}, {bad}, url, artist name, {{tall image}}, mosaic, {sketch page}, comic panel, impact (font), [dated], {logo}, ych, {what}, {where is your god now}, {distorted text}, repeated text, {floating head}, {1994}, {widescreen}, absolutely everyone, sequence, {compression artifacts}, hard translated, {cropped}, {commissioner name}, unknown text, high contrast'
         elif model == NAIv2:
             tags = 'lowres, bad, text, error, missing, extra, fewer, cropped, jpeg artifacts, worst quality, bad quality, watermark, displeasing, unfinished, chromatic aberration, scan, scan artifacts'
+        elif model == NAIv45cp:
+            tags = 'blurry, lowres, upscaled, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, negative space, blank page'
         elif model == NAIv4cp:
             tags = 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, logo, dated, signature, multiple views, gigantic breasts, white blank page, blank page'
         elif isV4:
@@ -821,6 +829,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             tags = 'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing'
         elif model == NAIv4cp:
             tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, logo, dated, signature, white blank page, blank page'
+        elif model == NAIv45cp:
+            tags = 'blurry, lowres, upscaled, artistic error, scan artifacts, jpeg artifacts, logo, too many watermarks, negative space, blank page'
         elif isV4:
             tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, white blank page, blank page'
         elif model == NAIv3f:
@@ -835,7 +845,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         
     
     if ucPreset not in [0,1,2,3]: ucPreset = 3
-    if ucPreset == 3 and model != NAIv3: ucPreset = 2
+    if ucPreset == 3 and model != NAIv3 and model != NAIv45cp: ucPreset = 2
 
     if isinstance(image, Image.Image):
         image_byte_array = BytesIO()

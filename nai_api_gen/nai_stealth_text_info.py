@@ -238,6 +238,7 @@ def process_nai_geninfo(items):
     model = items.get('Source',"")
     
     if model ==  "NovelAI Diffusion V4 F6E18726" in model: model = nai_api.NAIv4cp 
+    elif model ==  "NovelAI Diffusion V4.5 B5A2A797" in model: model = nai_api.NAIv45cp 
     elif model ==  "NovelAI Diffusion V4 4F49EC75" or 'NovelAI Diffusion V4' in model: model = nai_api.NAIv4 
     elif model ==  "Stable Diffusion F1022D28": model = nai_api.NAIv2
     elif model ==  "Stable Diffusion XL 9CC2F394": model = nai_api.NAIv3f
