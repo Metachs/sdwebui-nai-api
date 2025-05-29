@@ -22,11 +22,12 @@ NAIv4cp = "nai-diffusion-4-curated-preview"
 NAIv45cp = "nai-diffusion-4-5-curated"
 NAIv4f = "nai-diffusion-4-full"
 NAIv4 = "nai-diffusion-4-full"
+NAIv45 = "nai-diffusion-4-5-full"
 
 NAI_IMAGE_URL = 'https://image.novelai.net/ai/generate-image'
 NAI_AUGMENT_URL = 'https://image.novelai.net/ai/augment-image'
 
-nai_models = [NAIv4f,NAIv45cp,NAIv4cp,NAIv3,NAIv3f,NAIv2]
+nai_models = [NAIv45,NAIv4f,NAIv45cp,NAIv4cp,NAIv3,NAIv3f,NAIv2]
 
 NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde","k_dpmpp_2m_sde"]
 noise_schedules = ["exponential","polyexponential","karras","native"]
@@ -436,94 +437,6 @@ def prompt_has_weight(p):
 def prompt_is_nai(p):
     return "{" in p
     
-def prompt_to_nai_v4(p, parenthesis_only = False):
-    chunks = []
-    out = ""
-    states = []
-    start = 0
-    state = None
-    do = '['
-    dx = ']'
-    uo = '('
-    ux = ')'
-    e=':'
-    
-    
-    def addtext(i, end,prefix = "", suffix = ""):
-        nonlocal out
-        nonlocal state
-        nonlocal start
-        if state is None:
-            s = p[start:i]
-        elif state[3] is not None:
-            s = state[3] + p[state[0]:i]
-        else: s = p[state[0]:i]
-        
-        s = f'{prefix}{s}{suffix}'
-        #print (s)
-        if len(states)>0:
-            next = states.pop()
-            next[3] += s
-            next[0] = end
-            state = next
-        else:
-            state = None        
-            out+=s
-            
-        start = end
-        
-    def adjustments(v):
-        if v==1: return 1
-        if v<=0: return 25
-        if v < 1: v = 1/v
-        m = 1
-        for i in range(0,25):
-            dif = v - m
-            m*=1.05
-            if v < m and dif <= m - v: return i
-        return 25
-    
-    idx = 0
-    while idx < len(p) or (state is not None and idx < 1000 + len(p)):
-        if idx < len(p): 
-            i = idx
-            c = p[i]
-        else: 
-            c = ux if state[1] == uo else dx
-            i = len(p)
-        idx+=1        
-        if c not in [do,uo,dx,ux,e] or i>0 and p[i-1] == '\\': continue    
-        if c in [do,uo]:
-            if parenthesis_only and c == do: continue
-            if state is None: addtext(i,i+1)
-            else:     
-                state[3] += p[state[0]:i] 
-                state[0] = i+1
-                states.append(state)
-            state = [i+1,c,None,""]                
-        elif state is None: continue        
-        elif c == e: state[2] = i
-        elif c == dx and not parenthesis_only: addtext(i,i+1,'[[',']]' )
-        elif c == ux:
-            if state[2] is not None:
-                numstart = state[2]+1
-                numend = i
-                weight = tryfloat(p[state[2]+1:i],None)
-                if weight is not None:                    
-                    adj = adjustments(weight)                    
-                    addtext(state[2],i+1, f'{weight:.5g}::','::' )
-                    
-                    # if abs(weight - 1) < 0.025: addtext(state[2],i+1)
-                    # elif weight < 1: addtext(state[2],i+1,'['*adj ,']'*adj )
-                    # else: addtext(state[2],i+1,'{'*adj,'}'*adj )
-
-                    continue
-            if parenthesis_only: addtext(i,i+1,'(',')')
-            else: addtext(i,i+1,'{{','}}')
-    if start<len(p): addtext(len(p),len(p))
-    if not parenthesis_only: out = out.replace("\\(","(").replace("\\)",")")
-    return out
-    
 def prompt_to_nai(p, parenthesis_only = False):
     chunks = []
     out = ""
@@ -737,7 +650,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     
     if model not in nai_models: model = NAIv3
     
-    isV4 = model == NAIv4cp or model == NAIv4f or model == NAIv45cp
+    isV4 = model == NAIv4cp or model == NAIv4f or model == NAIv45cp or model == NAIv45
     isV3plus = model == NAIv3 or model == NAIv3f or isV4
     
     if isV4 and text_tag is None and nai_text_tag in prompt:
@@ -817,6 +730,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             tags = 'lowres, bad, text, error, missing, extra, fewer, cropped, jpeg artifacts, worst quality, bad quality, watermark, displeasing, unfinished, chromatic aberration, scan, scan artifacts'
         elif model == NAIv45cp:
             tags = 'blurry, lowres, upscaled, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, negative space, blank page'
+        elif model == NAIv45:
+            tags = 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page'
         elif model == NAIv4cp:
             tags = 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, logo, dated, signature, multiple views, gigantic breasts, white blank page, blank page'
         elif isV4:
@@ -831,6 +746,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, logo, dated, signature, white blank page, blank page'
         elif model == NAIv45cp:
             tags = 'blurry, lowres, upscaled, artistic error, scan artifacts, jpeg artifacts, logo, too many watermarks, negative space, blank page'
+        elif model == NAIv45:
+            tags = 'lowres, artistic error, scan artifacts, worst quality, bad quality, jpeg artifacts, multiple views, very displeasing, too many watermarks, negative space, blank page'
         elif isV4:
             tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, white blank page, blank page'
         elif model == NAIv3f:
@@ -950,3 +867,155 @@ def GrayLevels(image, inlo = 0, inhi = 255, mid = 128, outlo = 0, outhi = 255):
     if outlo>0 or outhi < 255:
         image = ImageMath.eval( f'int(((float(x)/255)*{outhi/255-outlo/255}+{outlo/255})*255)' ,x = image)
     return image.convert("RGB")
+
+# Following based on https://github.com/AUTOMATIC1111/stable-diffusion-webui/blob/master/modules/prompt_parser.py
+# License https://github.com/AUTOMATIC1111/stable-diffusion-webui?tab=AGPL-3.0-1-ov-file#readme
+
+re_attention = re.compile(r"""
+\\\(|
+\\\)|
+\\\[|
+\\]|
+\\\\|
+\\|
+\(|
+\[|
+:\s*([+-]?[.\d]+)\s*\)|
+\)|
+]|
+[^\\()\[\]:]+|
+:
+""", re.X)
+
+def parse_prompt_attention(text, weights_only = True):
+    res = []
+    round_brackets = []
+    square_brackets = []
+
+    round_bracket_multiplier = 1.1
+    square_bracket_multiplier = 1 / 1.1
+
+    def multiply_range(start_position, multiplier):
+        for p in range(start_position, len(res)):
+            res[p][1] *= multiplier
+            
+    def apply_range(start_position, open, close, multiplier):
+        if not weights_only:
+            multiply_range(start_position, multiplier)
+        else:
+            res[start_position][0] = open + res[start_position][0]
+            res[-1][0] = res[-1][0] + close
+
+    for m in re_attention.finditer(text):
+        text = m.group(0)
+        weight = m.group(1)
+
+        if text.startswith('\\'):
+            res.append([text[1:], 1.0])
+        elif text == '(':
+            round_brackets.append(len(res))
+        elif text == '[':
+            square_brackets.append(len(res))
+        elif weight is not None and round_brackets:
+            if tryfloat(weight): multiply_range(round_brackets.pop(), float(weight))
+            else: apply_range(round_brackets.pop(), '(',text, round_bracket_multiplier)
+        elif text == ')' and round_brackets:
+            apply_range(round_brackets.pop(), '(',')', round_bracket_multiplier)
+        elif text == ']' and square_brackets:
+            apply_range(round_brackets.pop(), '[',']', square_bracket_multiplier)
+        else:
+            res.append([text, 1.0])
+            
+    for pos in round_brackets:        
+        apply_range(pos, '(',')', round_bracket_multiplier)
+
+    for pos in square_brackets:
+        apply_range(pos, '[',']', square_bracket_multiplier)
+
+    if len(res) == 0:
+        res = [["", 1.0]]
+    # merge runs of identical weights
+    i = 0
+    while i + 1 < len(res):
+        if res[i][1] == res[i + 1][1]:
+            res[i][0] += res[i + 1][0]
+            res.pop(i + 1)
+        else:
+            i += 1
+    return res    
+    
+#(?:(?<=\s)|^)([+-]?[.\d]+)::|
+re_nattention = re.compile(r"""
+(-?\d*\.?\d*)::|
+{|
+}|
+\[|
+\]|
+::|
+[^:\[\]{}\d\.-]+|
+\d+|
+\.|
+\-|
+:
+""", re.X)
+def parse_prompt_nattention(text):
+    res = []
+    multiplier = 1.05    
+    cur_weight = 1.0 
+    weight_set = False
+    for m in re_nattention.finditer(text):
+        text = m.group(0)
+        weight = m.group(1)
+        print (m,weight)
+        
+        if text == '{' or text == ']':
+            cur_weight *= multiplier
+        elif text == '[' or text == '}':
+            cur_weight /= multiplier
+        elif text == '::':
+            cur_weight = 1.0
+        elif weight:
+            cur_weight = tryfloat(weight,0.0)
+        else:
+            if weight_set and res and res[-1][1]==cur_weight:
+                # If weight was set, but not modified, insert spaces so merging weights doesn't change meaning.
+                if re.search(r'^[^\s\,]',text) and re.search(r'[^\s\,]+$',res[-1][0]):
+                    text = ' ' + text                
+            res.append([text, cur_weight])
+            weight_set=False
+            continue
+        weight_set=True
+        
+    if len(res) == 0:
+        res = [["", 1.0]]
+
+    # merge runs of identical weights
+    i = 0
+    while i + 1 < len(res):
+        if res[i][1] == res[i + 1][1]:
+            res[i][0] += res[i + 1][0]
+            res.pop(i + 1)
+        else:
+            i += 1
+    return res
+
+def sd_to_nai_v4(s):
+    ws = parse_prompt_attention(s)
+    txt = ''
+    for s,w in ws:
+        w=f'{w:.5f}'.rstrip('0').rstrip('.')       
+        if txt or w != '1':
+            if w == '1': w = ''
+            #Insert space if concatenation changes weight
+            sep = ' ' if re.search(r'-?\d*\.?\d*$',txt+w).group(0)!=w else ''
+            txt = f'{txt}{sep}{w}::{s}'
+        else: txt += s
+    return txt
+    
+def nai_v4_to_sd(s):
+    ws = parse_prompt_nattention(s)    
+    txt = ''
+    for s,w in ws:
+        w=f'{w:.5f}'.rstrip('0').rstrip('.')
+        txt += s if w=='1' else f'({s}:{w})'
+    return txt
