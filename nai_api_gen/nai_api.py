@@ -38,6 +38,55 @@ noise_schedule_selections = ["recommended","exponential","polyexponential","karr
 
 nai_text_tag = '. Text:'
 
+qualPresets = {
+    NAIv2: 'very aesthetic, best quality, absurdres',
+    NAIv3: 'best quality, amazing quality, very aesthetic, absurdres',
+    NAIv3f: '{best quality}, {amazing quality}',
+    NAIv4: 'no text, best quality, very aesthetic, absurdres',
+    NAIv4cp: 'rating:general, best quality, very aesthetic, absurdres',
+    NAIv45: 'location, very aesthetic, masterpiece, no text',
+    NAIv45cp: 'location, masterpiece, no text, -0.8::feet::, rating:general',
+}
+
+v2uc = 'lowres, bad, text, error, missing, extra, fewer, cropped, jpeg artifacts, worst quality, bad quality, watermark, displeasing, unfinished, chromatic aberration, scan, scan artifacts'
+
+v3uc = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]'
+v3ucL = 'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing'
+v3ucHu = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], bad anatomy, bad hands, @_@, mismatched pupils, heart-shaped pupils, glowing eyes'
+
+v3fuc = '{{worst quality}}, [displeasing], {unusual pupils}, guide lines, {{unfinished}}, {bad}, url, artist name, {{tall image}}, mosaic, {sketch page}, comic panel, impact (font), [dated], {logo}, ych, {what}, {where is your god now}, {distorted text}, repeated text, {floating head}, {1994}, {widescreen}, absolutely everyone, sequence, {compression artifacts}, hard translated, {cropped}, {commissioner name}, unknown text, high contrast'
+v3fucL = '{worst quality}, guide lines, unfinished, bad, url, tall image, widescreen, compression artifacts, unknown text'
+
+v4cpuc = 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, logo, dated, signature, multiple views, gigantic breasts, white blank page, blank page'
+v4cpucL = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, logo, dated, signature, white blank page, blank page'
+
+v4uc = 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, multiple views, logo, too many watermarks, white blank page, blank page'
+v4ucL = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, white blank page, blank page'
+
+
+v45cpuc = 'blurry, lowres, upscaled, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, negative space, blank page'
+v45cpucL = 'blurry, lowres, upscaled, artistic error, scan artifacts, jpeg artifacts, logo, too many watermarks, negative space, blank page'
+v45cpucHu = 'blurry, lowres, upscaled, artistic error, film grain, scan artifacts, bad anatomy, bad hands, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, @_@, mismatched pupils, glowing eyes, negative space, blank page'
+
+v45uc = 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page'
+v45ucL = 'lowres, artistic error, scan artifacts, worst quality, bad quality, jpeg artifacts, multiple views, very displeasing, too many watermarks, negative space, blank page'
+
+v45ucHu = 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy'
+
+v45ucFu = '{worst quality}, distracting watermark, unfinished, bad quality, {widescreen}, upscale, {sequence}, {{grandfathered content}}, blurred foreground, chromatic aberration, sketch, everyone, [sketch background], simple, [flat colors], ych (character), outline, multiple scenes, [[horror (theme)]], comic'
+
+ucPresets = {
+    NAIv2: [v2uc,v3ucL],
+    NAIv3: [v3uc,v3ucL,v3ucHu],
+    NAIv3f: [v3fuc,v3fucL],
+    NAIv4: [v4uc,v4ucL],
+    NAIv4cp: [v4cpuc,v4cpucL],
+    NAIv45: [v45uc,v45ucL,v45ucFu,v45ucHu],
+    NAIv45cp: [v45cpuc,v45cpucL,v45cpucHu],
+}
+
+
+
 def get_headers(key):
     return {
         'accept': "*/*",
@@ -685,85 +734,38 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     skip_cfg_above_sigma = tryfloat(skip_cfg_above_sigma, 0) or None    
     params['skip_cfg_above_sigma'] = get_skip_cfg_above_sigma(width, height) if variety and not skip_cfg_above_sigma else skip_cfg_above_sigma
     
+    
+    
     if qualityToggle:
-        if model == NAIv3:
-            tags = 'best quality, amazing quality, very aesthetic, absurdres'
-            if tags not in prompt: prompt = f'{prompt}, {tags}'
-        elif model == NAIv45cp:
-            tags = 'location, masterpiece, no text, -0.8::feet::, rating:general'
-            if tags not in prompt: prompt = f'{prompt}, {tags}'
-        elif model == NAIv4cp:
-            tags = 'rating:general, best quality, very aesthetic, absurdres'
-            if tags not in prompt: prompt = f'{prompt}, {tags}'
-        elif isV4:
-            if not text_tag: tags = 'no text, best quality, very aesthetic, absurdres'
-            else: tags = 'best quality, very aesthetic, absurdres'
-            if tags not in prompt: prompt = f'{prompt}, {tags}'
-        elif model == NAIv3f:
-            tags = '{best quality}, {amazing quality}'
-            if tags not in prompt: prompt = f'{prompt}, {tags}'
-        elif model == NAIv2:
-            tags = 'very aesthetic, best quality, absurdres'
-            if not prompt.startswith(tags):
-                prompt = f'{tags}, {prompt}'
-        else:
-            tags = 'masterpiece, best quality'
-            if not prompt.startswith(tags):
-                prompt = f'{tags}, {prompt}'    
-                
+        tags = qualPresets.get(model, '')
         
-    tags=None
-    if ucPreset == 2:
-        if model == NAIv3:
-            tags = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract], bad anatomy, bad hands, @_@, mismatched pupils, heart-shaped pupils, glowing eyes'
-        elif model == NAIv45cp:
-            tags = 'blurry, lowres, upscaled, artistic error, film grain, scan artifacts, bad anatomy, bad hands, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, @_@, mismatched pupils, glowing eyes, negative space, blank page'
-        else:
-            ucPreset = 0
-
-    if ucPreset == 0:
-        if model == NAIv3:
-            tags = 'lowres, {bad}, error, fewer, extra, missing, worst quality, jpeg artifacts, bad quality, watermark, unfinished, displeasing, chromatic aberration, signature, extra digits, artistic error, username, scan, [abstract]'
-        elif model == NAIv3f:
-            tags = '{{worst quality}}, [displeasing], {unusual pupils}, guide lines, {{unfinished}}, {bad}, url, artist name, {{tall image}}, mosaic, {sketch page}, comic panel, impact (font), [dated], {logo}, ych, {what}, {where is your god now}, {distorted text}, repeated text, {floating head}, {1994}, {widescreen}, absolutely everyone, sequence, {compression artifacts}, hard translated, {cropped}, {commissioner name}, unknown text, high contrast'
-        elif model == NAIv2:
-            tags = 'lowres, bad, text, error, missing, extra, fewer, cropped, jpeg artifacts, worst quality, bad quality, watermark, displeasing, unfinished, chromatic aberration, scan, scan artifacts'
-        elif model == NAIv45cp:
-            tags = 'blurry, lowres, upscaled, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, negative space, blank page'
-        elif model == NAIv45:
-            tags = 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page'
-        elif model == NAIv4cp:
-            tags = 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, logo, dated, signature, multiple views, gigantic breasts, white blank page, blank page'
-        elif isV4:
-            tags = 'blurry, lowres, error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, multiple views, logo, too many watermarks, white blank page, blank page'
-        else:
-            tags = 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+        if tags and tags not in prompt:
+            if model == NAIv2: prompt = f'{tags}, {prompt}'
+            else: prompt = f'{prompt}, {tags}'
+            
+    presets = ucPresets.get(model, [])
     
-    if ucPreset == 1:
-        if model == NAIv3 or model == NAIv2:
-            tags = 'lowres, jpeg artifacts, worst quality, watermark, blurry, very displeasing'
-        elif model == NAIv4cp:
-            tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, logo, dated, signature, white blank page, blank page'
-        elif model == NAIv45cp:
-            tags = 'blurry, lowres, upscaled, artistic error, scan artifacts, jpeg artifacts, logo, too many watermarks, negative space, blank page'
-        elif model == NAIv45:
-            tags = 'lowres, artistic error, scan artifacts, worst quality, bad quality, jpeg artifacts, multiple views, very displeasing, too many watermarks, negative space, blank page'
-        elif isV4:
-            tags = 'blurry, lowres, error, worst quality, bad quality, jpeg artifacts, very displeasing, white blank page, blank page'
-        elif model == NAIv3f:
-            tags = '{worst quality}, guide lines, unfinished, bad, url, tall image, widescreen, compression artifacts, unknown text'
-        else:
-            tags = 'lowres, text, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
-    
-    if tags and tags not in neg: neg = f'{tags}, {neg}'
+    if not presets:
+        ucPreset = 2
+    else:
+        if isinstance(ucPreset, str) and len(ucPreset) > 1:
+            ucPreset= ucPreset.lower()
+            if 'heavy' in ucPreset: ucPreset = 0
+            elif 'light' in ucPreset: ucPreset = 1
+            elif 'human' in ucPreset: ucPreset = len(presets) - 1 if len(presets) > 2 else 0
+            elif 'furry' in ucPreset: ucPreset = 2 if len(presets) > 2 else 0
+            else: ucPreset = len(presets)
+        else: 
+            ucPreset = int(ucPreset)
+            
+        if ucPreset < len(presets): 
+            tags = presets[ucPreset]
+            if tags not in neg: neg = f'{tags}, {neg}'
+        else: ucPreset = len(presets)
     
     if isV4 and text_tag:
         prompt = f'{prompt}{nai_text_tag}{text_tag}'
         
-    
-    if ucPreset not in [0,1,2,3]: ucPreset = 3
-    if ucPreset == 3 and model != NAIv3 and model != NAIv45cp: ucPreset = 2
-
     if isinstance(image, Image.Image):
         image_byte_array = BytesIO()
         image.save(image_byte_array, format='PNG')

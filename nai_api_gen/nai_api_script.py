@@ -223,7 +223,7 @@ class NAIGENScriptBase(scripts.Script):
             with gr.Accordion(label="Options", open=False):
                 with gr.Row(variant="compact"):
                     qualityToggle = gr.Radio(value="Off", label="Quality Preset",choices=["Off","On"],type="index") 
-                    ucPreset = gr.Radio(label="Negative Preset",value="None",choices=["Heavy","Light","Human","None"],type="index")
+                    ucPreset = gr.Radio(label="Negative Preset",value="None",choices=["Heavy","Light","Human","Furry","None"],type="value")
                     convert_prompts = gr.Dropdown(label="Convert Prompts for NAI ",value="Auto",choices=["Auto","Never","Always"])
                     cost_limiter = gr.Checkbox(value=True, label="Force Opus Free Gen Size/Step Limit")
                     nai_post = gr.Checkbox(value=True, label="Use NAI for Inpainting with ADetailer")
