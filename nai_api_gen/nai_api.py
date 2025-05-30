@@ -646,8 +646,10 @@ def prompt_to_a1111(p):
 
     return out
 
-def get_skip_cfg_above_sigma(width,height): 
+def get_skip_cfg_above_sigma(width,height,model = ''): 
+    if model == NAIv45: return 58 * math.pow( width * height / (832 * 1216) , 0.5)
     return 19 * math.pow( width * height / (832 * 1216) , 0.5)
+    
 
 def clean_prompt(p):
     if type(p) != str: p=f'{p}'
@@ -732,7 +734,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     if isV3plus: params['cfg_rescale'] = float(cfg_rescale)
     
     skip_cfg_above_sigma = tryfloat(skip_cfg_above_sigma, 0) or None    
-    params['skip_cfg_above_sigma'] = get_skip_cfg_above_sigma(width, height) if variety and not skip_cfg_above_sigma else skip_cfg_above_sigma
+    params['skip_cfg_above_sigma'] = get_skip_cfg_above_sigma(width, height,model) if variety and not skip_cfg_above_sigma else skip_cfg_above_sigma
     
     
     
