@@ -424,7 +424,7 @@ class NAIGENScriptBase(scripts.Script):
         shared.state.interrupt()
     
     def limit_costs(self, p, cost_limiter = True, nai_batch = False, arbitrary_res = False):
-        MAXSIZE = 1048576
+        MAXSIZE = 1024*1024
         if p.width * p.height > MAXSIZE:
             if not cost_limiter: 
                 self.incurs_cost = True
@@ -659,9 +659,11 @@ class NAIGENScriptBase(scripts.Script):
                         with open(file,'r') as naiv4vibe: 
                             js = json.loads(naiv4vibe.read())
                             if js.get('type',None) != 'image': continue
-                            for e in [e['encoding'] for m in js.get('encodings', {}).values() for e in m.values()]:
+                            for enc in [e for m in js.get('encodings', {}).values() for e in m.values()]:
+                                e = enc['encoding']
                                 if e and e in es:
                                     ids[es.index(e)] = js['id']
+                                    ies[es.index(e)] = float(enc.get('params', {}).get('information_extracted',ies[es.index(e)]))
                                     found+=1
                                     break
                     except Exception as e:
@@ -1396,10 +1398,12 @@ class NAIGENScriptBase(scripts.Script):
         self.nai_preprocess(p, *args)
         self.nai_generate_images(p, *args)
             
-    def convert_to_nai(self, prompt, neg,convert_prompts="Always"):
+    def convert_to_nai(self, prompt, neg,convert_prompts="Always" , use_numeric_emphasis=False):
         if convert_prompts != "Never":
-            if convert_prompts == "Always" or nai_api.prompt_has_weight(prompt): prompt = nai_api.prompt_to_nai(prompt,True)
-            if convert_prompts == "Always" or nai_api.prompt_has_weight(neg): neg = nai_api.prompt_to_nai(neg,True)
+            if convert_prompts == "Always" or nai_api.prompt_has_weight(prompt): 
+                prompt = nai_api.sd_to_nai_v4(prompt) if use_numeric_emphasis else nai_api.prompt_to_nai(prompt,True) 
+            if convert_prompts == "Always" or nai_api.prompt_has_weight(neg): 
+                neg = nai_api.sd_to_nai_v4(neg) if use_numeric_emphasis else nai_api.prompt_to_nai(neg,True)
 
         prompt = prompt.replace('\\(','(').replace('\\)',')') # Un-Escape parenthesis
         neg = neg.replace('\\(','(').replace('\\)',')')
@@ -1548,6 +1552,8 @@ class NAIGENScriptBase(scripts.Script):
         def getparams(i,n_samples=1):
             seed =int(p.all_seeds[i])
             
+            isV4 = '4' in model
+            
             if getattr(p,'cfg_scaleses',None) and p.cfg_scaleses[i]: p.cfg_scale=p.cfg_scaleses[i]
             if getattr(p,'sampler_nameses',None) and p.sampler_nameses[i]:
                 if f'{PREFIX} sampler' in p.extra_generation_params: p.extra_generation_params.pop(f'{PREFIX} sampler')
@@ -1558,10 +1564,10 @@ class NAIGENScriptBase(scripts.Script):
             
             image= None if ( not isimg2img or self.do_local_img2img == 1 or self.init_images is None or len(self.init_images) == 0) else self.init_images[i % len(self.init_images)]
                 
-            prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts)
+            prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts, isV4 and shared.opts.nai_api_use_numeric_emphasis)
             
             mask = self.mask
-            if '4' in model: 
+            if isV4: 
                 prompt,neg,chars,text_tag = self.parse_tags(prompt,neg)
                 if mask and inpaint_mode!=1:
                     mask = mask.resize((self.mask.width//8, self.mask.height//8),Image.Resampling.NEAREST)

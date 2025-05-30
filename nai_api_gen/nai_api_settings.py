@@ -15,7 +15,7 @@ def on_ui_settings():
     
     addopt('nai_api_skip_checks', shared.OptionInfo(False, "Skip NAI account/subscription/Anlas checks.",gr.Checkbox, section=section))
     addopt('nai_api_convertImportedWeights', shared.OptionInfo(True, "Convert NAI weights to A1111 when importing NAI prompts.",gr.Checkbox, section=section))
-    
+    addopt('nai_api_use_numeric_emphasis', shared.OptionInfo(True, "Use numeric emphasis (1.2:: ... ::) when converting sdwebui prompt weights for NAI.",gr.Checkbox, section=section))
     
     addopt('nai_api_recommended_schedule_overrides', shared.OptionInfo('k_dpmpp_2m:exponential k_dpmpp_sde:native  k_dpmpp_2s_ancestral:native', f"Override the recommended Noise Schedule (default is karras, formerly native). Format - 'sampler:schedule' pairs separated by spaces. Samplers - [{', '.join(nai_api.NAI_SAMPLERS)}] Schedules - [{', '.join(nai_api.noise_schedules)}] .",gr.Textbox,section=section))    
     

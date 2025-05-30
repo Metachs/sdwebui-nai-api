@@ -135,7 +135,12 @@ def process_nai_geninfo(items):
         v4p = j.get("v4_prompt","")
         v4n = j.get("v4_negative_prompt","")        
         
+        v4Weights = v4p and shared.opts.nai_api_convertImportedWeights and shared.opts.nai_api_use_numeric_emphasis
+        
         if v4p:
+            if v4Weights:
+                prompt = nai_api.nai_v4_to_sd(prompt)
+                negs = nai_api.nai_v4_to_sd(negs)
             use_coords = v4p.get('use_coords',False)
             xcoords={0.1:'A',0.3:'B',0.5:'C',0.7:'D',0.9:'E'}
             ycoords={0.1:'1',0.3:'2',0.5:'3',0.7:'4',0.9:'5'}
@@ -155,19 +160,24 @@ def process_nai_geninfo(items):
                         y = cs[0].get('y',0.5)
                         if x in xcoords and y in ycoords: prompt += f'{xcoords[x]}{ycoords[y]}:'
                         else: prompt += f'{x},{y}:'
-                cap = c.get('char_caption','')
+                cap = c.get('char_caption','')                
+                if v4Weights: cap = nai_api.nai_v4_to_sd(cap)
                 if '#' in cap:
                     if shared.opts.data.get('enable_prompt_comments', False) and shared.opts.data.get('nai_alt_action_tag', ''):
                         cap = cap.replace('#',shared.opts.data.get('nai_alt_action_tag'))
                 prompt += cap
+                
             if any(c.get('char_caption',None) for c in ccn):
                 for c in ccn:
                     negs += '\nCHAR:'
-                    negs += c.get('char_caption','')
+                    cap = c.get('char_caption','')
+                    if v4Weights: cap = nai_api.nai_v4_to_sd(cap)
+                    negs += cap
                 negs +='\n'
+                
             if ccp: prompt+='\n'
-            
-        if shared.opts.data.get('nai_api_convertImportedWeights', True): 
+        
+        if not v4Weights and shared.opts.nai_api_convertImportedWeights: 
             try:
                 p = prompt_to_a1111(prompt)
                 n = prompt_to_a1111(negs)
@@ -242,6 +252,7 @@ def process_nai_geninfo(items):
     elif model ==  "NovelAI Diffusion V4 4F49EC75" or 'NovelAI Diffusion V4' in model: model = nai_api.NAIv4 
     elif model ==  "Stable Diffusion F1022D28": model = nai_api.NAIv2
     elif model ==  "Stable Diffusion XL 9CC2F394": model = nai_api.NAIv3f
+    elif model ==  "NovelAI Diffusion V4.5 B9F340FD": model = nai_api.NAIv45
     else: model = nai_api.NAIv3
         
     add('model',value = model)
