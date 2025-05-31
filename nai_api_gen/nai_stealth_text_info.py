@@ -222,14 +222,6 @@ def process_nai_geninfo(items):
     add('cfg_rescale')
     add('sampler',value="Auto")
     
-    skip_cfg_above_sigma = tryfloat(j.get('skip_cfg_above_sigma', None))
-    if skip_cfg_above_sigma:
-        epsilon = .0001
-        if abs(get_skip_cfg_above_sigma(tryfloat(j["width"]), tryfloat(j["height"])) - skip_cfg_above_sigma) < epsilon:
-            add('variety', value = True)
-        else: 
-            add('skip_cfg_above_sigma')
-        
     noise_schedule = get_set_noise_schedule(j["sampler"], j.get("noise_schedule", ""))
     if noise_schedule: add("noise_schedule", value = noise_schedule )
     
@@ -256,7 +248,15 @@ def process_nai_geninfo(items):
     else: model = nai_api.NAIv3
         
     add('model',value = model)
-    
+
+    skip_cfg_above_sigma = tryfloat(j.get('skip_cfg_above_sigma', None))
+    if skip_cfg_above_sigma:
+        epsilon = .0001
+        if abs(get_skip_cfg_above_sigma(tryfloat(j["width"]), tryfloat(j["height"]),model) - skip_cfg_above_sigma) < epsilon:
+            add('variety', value = True)
+        else: 
+            add('skip_cfg_above_sigma')        
+
     legv4 = add('legacy_uc')
     if 'NovelAI Diffusion V4' in model and legv4 is None: add('legacy_uc',value="true")
     
