@@ -1564,17 +1564,22 @@ class NAIGENScriptBase(scripts.Script):
             
             image= None if ( not isimg2img or self.do_local_img2img == 1 or self.init_images is None or len(self.init_images) == 0) else self.init_images[i % len(self.init_images)]
                 
-            prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts, isV4 and shared.opts.nai_api_use_numeric_emphasis)
             
             mask = self.mask
             if isV4: 
-                prompt,neg,chars,text_tag = self.parse_tags(prompt,neg)
+                prompt,neg,chars,text_tag = self.parse_tags(p.all_prompts[i],  p.all_negative_prompts[i])
+                for c in chars:
+                    cp,cn = self.convert_to_nai(c.get('prompt',''),c.get('uc', ''),convert_prompts,shared.opts.nai_api_use_numeric_emphasis)
+                    if cp: c['prompt'] = cp
+                    if cn: c['uc'] = cn
+                prompt,neg = self.convert_to_nai(prompt,neg,convert_prompts,shared.opts.nai_api_use_numeric_emphasis)
                 if mask and inpaint_mode!=1:
                     mask = mask.resize((self.mask.width//8, self.mask.height//8),Image.Resampling.NEAREST)
                     mask = mask.resize((self.mask.width, self.mask.height),Image.Resampling.NEAREST)
                     mask = clip(mask, 128)
                     mask = mask.convert("RGBA")
             else: 
+                prompt,neg = self.convert_to_nai(p.all_prompts[i],  p.all_negative_prompts[i], convert_prompts, False)
                 chars = []
                 text_tag = None
             
