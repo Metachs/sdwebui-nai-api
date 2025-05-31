@@ -1006,14 +1006,17 @@ def parse_prompt_nattention(text):
 def sd_to_nai_v4(s):
     ws = parse_prompt_attention(s)
     txt = ''
+    open = False
     for s,w in ws:
         w=f'{w:.5f}'.rstrip('0').rstrip('.')       
         if txt or w != '1':
             if w == '1': w = ''
+            open = w == ''
             #Insert space if concatenation changes weight
             sep = ' ' if re.search(r'-?\d*\.?\d*$',txt+w).group(0)!=w else ''
             txt = f'{txt}{sep}{w}::{s}'
         else: txt += s
+    if open: txt += '::'
     return txt
     
 def nai_v4_to_sd(s):
