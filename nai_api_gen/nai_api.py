@@ -926,7 +926,7 @@ def parse_prompt_attention(text, weights_only = True):
         elif text == ')' and round_brackets:
             apply_range(round_brackets.pop(), '(',')', round_bracket_multiplier)
         elif text == ']' and square_brackets:
-            apply_range(round_brackets.pop(), '[',']', square_bracket_multiplier)
+            apply_range(square_brackets.pop(), '[',']', square_bracket_multiplier)
         else:
             res.append([text, 1.0])
             
