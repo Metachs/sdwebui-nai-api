@@ -95,8 +95,8 @@ def get_headers(key):
         'content-type': "application/json",
     }
 
-TERMINAL_ERRORS = [401,403,404,-1]
-TERMINAL_ERROR_MESSAGES = ["Error decoding request:","Error verifying request:"]
+TERMINAL_ERRORS = [400,401,403,404,-1]
+TERMINAL_ERROR_MESSAGES = ["Error decoding request:","Error verifying request:","doesn't exist"]
 
 #TODO: Move to js file
 vibe_processing_js ="""
@@ -682,7 +682,7 @@ def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
         # file.write(f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{defry or ""}{prompt or ""}{seed or ""}}}')
     return f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{image or ""}{defry or ""}{prompt or ""}{seed or ""}}}'
 
-def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = None , reference_strength = None,n_samples = 1,variety = False,skip_cfg_above_sigma = None,deliberate_euler_ancestral_bug=None,prefer_brownian=None, characterPrompts = None, text_tag = None, legacy_uc = False,normalize_reference_strength_multiple = False):
+def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = None , reference_strength = None,n_samples = 1,variety = False,skip_cfg_above_sigma = None,deliberate_euler_ancestral_bug=None,prefer_brownian=None, characterPrompts = None, text_tag = None, legacy_uc = False,normalize_reference_strength_multiple = False, color_correct = True):
 
     params = {
         'params_version':3,
@@ -779,6 +779,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         params['strength'] = tryfloat(strength, 0.5)
         params['noise'] = tryfloat(noise, 0.0)
         params['extra_noise_seed'] = int(extra_noise_seed or seed)
+        if mask is None: params['color_correct'] = bool(color_correct)
         if isinstance(mask, Image.Image):
             image_byte_array = BytesIO()
             mask.save(image_byte_array, format="PNG")
