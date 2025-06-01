@@ -407,7 +407,6 @@ class NAIGENScriptBase(scripts.Script):
         self.fragments = []
         self.fragment_texts = []
         self.mask = None
-        self.init_masked = None
         self.crop = None
         self.init_images = None
         self.has_protected_prompt = False
@@ -1203,7 +1202,6 @@ class NAIGENScriptBase(scripts.Script):
             return
         
         mask = None if not isimg2img or self.inpaint_mode == 2 else self.mask
-        init_masked = None
         DEBUG_LOG("nai_preprocess")
         crop = None
         init_images=[]
@@ -1213,8 +1211,14 @@ class NAIGENScriptBase(scripts.Script):
             DEBUG_LOG("init_images: " ,len(p.init_images))
             if mask is not None: 
                 mask = mask.convert('L')
-                DEBUG_LOG("Mask",mask.width, mask.height)                    
+                DEBUG_LOG("Mask",mask.width, mask.height)
+                
                 if p.inpainting_mask_invert: mask = ImageOps.invert(mask)
+                if not p.inpaint_full_res: 
+                    mask = images.resize_image(p.resize_mode if p.resize_mode < 3 else 0, mask, p.width, p.height)
+                elif p.init_images and p.init_images[0].size != mask.size:
+                    mask = mask.resize(p.init_images[0].size,Image.Resampling.NEAREST)
+
                 if not alt_masking:
                     if self.inpaint_mode == 1 or not self.isV4:
                         if p.mask_blur > 0: mask = maskblur(mask, p.mask_blur)
@@ -1227,15 +1231,14 @@ class NAIGENScriptBase(scripts.Script):
                             overlay_mask = Image.fromarray(np.clip((np.array(mask).astype(np.float32)) * 2, 0, 255).astype(np.uint8))
                     else:
                         if p.mask_blur > 0: mask = maskblur(mask, p.mask_blur)
-                        
-                        if not p.inpaint_full_res: 
-                            mask = images.resize_image(p.resize_mode if p.resize_mode < 3 else 0, mask, p.width, p.height)
-                            
+                        dilate = 4
+                        radius = 20
                         overlay_mask = mask.resize((mask.width//8, mask.height//8),Image.Resampling.NEAREST)
                         overlay_mask = clip(overlay_mask, 128)
-                        overlay_mask = dilate_contract(overlay_mask, 4)
+                        if dilate > 0: overlay_mask = dilate_contract(overlay_mask, dilate)
                         overlay_mask = overlay_mask.resize((mask.width, mask.height),Image.Resampling.NEAREST)
-                        overlay_mask = maskblur2(overlay_mask, 20, 2)
+                        if dilate > 0: overlay_mask = maskblur2(overlay_mask, radius,2)
+                        else: overlay_mask = blur_out(overlay_mask, radius)
                         
                         if p.inpaint_full_res:
                             crop = masking.expand_crop_region(masking.get_crop_region(np.array(mask), p.inpaint_full_res_padding), p.width, p.height, mask.width, mask.height)
@@ -1253,7 +1256,6 @@ class NAIGENScriptBase(scripts.Script):
                     if p.inpaint_full_res:
                         crop = masking.expand_crop_region(masking.get_crop_region(np.array(mask), p.inpaint_full_res_padding + p.mask_blur*2+expand*2), p.width, p.height, mask.width, mask.height)
                         mask = images.resize_image(2, mask.crop(crop), p.width, p.height)
-                    else: mask = images.resize_image(p.resize_mode if p.resize_mode < 3 else 0, mask, p.width, p.height)
                     min_mask = mask.convert('L')
                     
                     if adjust_mask: mask = dilate_contract(mask,adjust_mask)
@@ -1274,7 +1276,7 @@ class NAIGENScriptBase(scripts.Script):
 
                 mask = mask.convert('L')
                 self.mask_for_overlay = overlay_mask
-                init_masked=[]               
+                self.overlay_mask = ImageOps.invert(overlay_mask.convert('L'))
 
             for i in range(len(p.init_images)):
                 image = p.init_images[i]
@@ -1284,12 +1286,6 @@ class NAIGENScriptBase(scripts.Script):
                 
                 if not crop and (image.width != p.width or image.height != p.height):
                     image = images.resize_image(p.resize_mode if p.resize_mode < 3 else 0, image, p.width, p.height)
-                    
-                if init_masked is not None:
-                    image_masked = Image.new('RGBa', (image.width, image.height))
-                    DEBUG_LOG(image.width, image.height, p.width, p.height, mask.width, mask.height, overlay_mask.width, overlay_mask.height)
-                    image_masked.paste(image.convert("RGBA").convert("RGBa"), mask=ImageOps.invert(overlay_mask.convert('L')))
-                    init_masked.append(image_masked.convert('RGBA'))
                 
                 if crop: image = images.resize_image(2, image.crop(crop), p.width, p.height)
  
@@ -1302,13 +1298,11 @@ class NAIGENScriptBase(scripts.Script):
                 mask = mask.convert("RGBA")
                     
             self.mask = mask
-            self.init_masked = init_masked
             self.crop = crop
             self.init_images = init_images
         else: 
             self.init_images = None
             self.mask = None
-            self.init_masked = None
             self.crop = None
             
         if self.augment_mode == 'recolorize':
@@ -1748,10 +1742,10 @@ class NAIGENScriptBase(scripts.Script):
         original.is_original_image = True
         if self.crop is not None:
             if shared.opts.data.get('nai_api_all_images', False): add_fragment()
-            over = self.init_masked[i % len(self.init_masked)]
-            image = Image.new("RGBA", over.size )
-            image.paste(images.resize_image(1, self.images[i].convert("RGB"), self.crop[2]-self.crop[0], self.crop[3]-self.crop[1]), (self.crop[0], self.crop[1]))
-            image.alpha_composite(over)
+            over = p.init_images[i % len(p.init_images)]            
+            image = over.copy()
+            image.paste(images.resize_image(1, self.images[i].convert('RGB'), self.crop[2]-self.crop[0], self.crop[3]-self.crop[1]), (self.crop[0], self.crop[1]))
+            image = Image.composite(over, image, self.overlay_mask).convert('RGB')
             image.original_nai_image = original
             self.images[i] = image
             if hasattr(self, 'mask_for_overlay') and self.mask_for_overlay and any([shared.opts.save_mask, shared.opts.save_mask_composite, shared.opts.return_mask, shared.opts.return_mask_composite]):
@@ -1759,17 +1753,13 @@ class NAIGENScriptBase(scripts.Script):
                     image_mask = self.mask_for_overlay.convert('RGB')
                     fragments.append(image_mask)
                     add_fragment(image_mask)
-
                 if shared.opts.return_mask_composite:
                     image_mask_composite = Image.composite(image.convert('RGBA').convert('RGBa'), Image.new('RGBa', image.size), images.resize_image(2, self.mask_for_overlay, image.width, image.height).convert('L')).convert('RGBA')
                     add_fragment(image_mask_composite)
                     fragments.append(image_mask_composite)
         elif self.mask is not None:
             if shared.opts.data.get('nai_api_all_images', False): add_fragment()
-
-            image = self.images[i].convert("RGB").convert("RGBA")
-            image.alpha_composite(self.init_masked[i % len(self.init_masked)])
-            image = image.convert("RGB")
+            image = Image.composite(self.init_images[i % len(self.init_images)], self.images[i].convert('RGB'), self.overlay_mask).convert('RGB')
             image.original_nai_image = original
             self.images[i] = image
 
