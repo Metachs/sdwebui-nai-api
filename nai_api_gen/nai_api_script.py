@@ -1293,10 +1293,6 @@ class NAIGENScriptBase(scripts.Script):
                     image.paste(masking.fill(image, min_mask).convert("RGBA").convert("RGBa"), mask=min_mask.convert('L'))
 
                 init_images.append(image)
-                
-            if '4' in self.model and self.inpaint_mode != 1:
-                mask = mask.convert("RGBA")
-                    
             self.mask = mask
             self.crop = crop
             self.init_images = init_images
