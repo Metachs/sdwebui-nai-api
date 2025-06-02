@@ -36,7 +36,7 @@ augment_emotions = ['neutral', 'happy', 'sad', 'angry', 'scared', 'surprised', '
 
 noise_schedule_selections = ["recommended","exponential","polyexponential","karras","native"]
 
-nai_text_tag = '. Text:'
+nai_text_tag = ' Text:'
 
 qualPresets = {
     NAIv2: 'very aesthetic, best quality, absurdres',
@@ -705,12 +705,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     isV3plus = model == NAIv3 or model == NAIv3f or isV4
     
     if isV4 and text_tag is None and nai_text_tag in prompt:
-        # Documented Syntax (handle period before ' Text:')
-        # Disabled for compatability, if user adds a period before ' Text:' NAI just ignores it.
-        # if nai_text_tag in prompt: prompt, text_tag = prompt.split(nai_text_tag,1)
-        
-        # Actual Syntax (Only check for ' Text:')
-        if ' Text:' in prompt: prompt, text_tag = prompt.split(' Text:',1)
+        prompt, text_tag = prompt.split(' Text:',1)
     
     if "ddim" in sampler.lower():
         sampler = "ddim_v3" if isV3 else "ddim"
@@ -735,16 +730,14 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     
     skip_cfg_above_sigma = tryfloat(skip_cfg_above_sigma, 0) or None    
     params['skip_cfg_above_sigma'] = get_skip_cfg_above_sigma(width, height,model) if variety and not skip_cfg_above_sigma else skip_cfg_above_sigma
-    
-    
-    
+
     if qualityToggle:
         tags = qualPresets.get(model, '')
         
         if tags and tags not in prompt:
             if model == NAIv2: prompt = f'{tags}, {prompt}'
             else: prompt = f'{prompt}, {tags}'
-            
+
     presets = ucPresets.get(model, [])
     
     if not presets:
