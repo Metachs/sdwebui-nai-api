@@ -851,7 +851,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
 def GrayLevels(image, inlo = 0, inhi = 255, mid = 128, outlo = 0, outhi = 255):
     from PIL import Image,ImageMath
     inlo,inhi,mid,outlo,outhi = tryfloat(inlo,0),tryfloat(inhi,255),tryfloat(mid,128),tryfloat(outlo,0),tryfloat(outhi,255)
-    print(inlo,inhi,mid,outlo,outhi)
+    # print(inlo,inhi,mid,outlo,outhi)
     image = image.convert("L")
     gamma = None
     if mid < 127:
@@ -964,7 +964,6 @@ def parse_prompt_nattention(text):
     for m in re_nattention.finditer(text):
         text = m.group(0)
         weight = m.group(1)
-        print (m,weight)
         
         if text == '{' or text == ']':
             cur_weight *= multiplier

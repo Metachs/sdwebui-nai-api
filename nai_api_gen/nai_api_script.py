@@ -1330,7 +1330,7 @@ class NAIGENScriptBase(scripts.Script):
                 if vibe is None:
                     self.comment(p,f"Could not find file for Vibe{i} ID: {id}")
                     en=False
-                elif '4' not in self.model:
+                elif not self.isV4:
                     if not vibe.get('image', None):
                         self.comment(p,f"Skipping Encoding Only Vibe{i}, no image for for v3")
                         en = False
@@ -1369,10 +1369,8 @@ class NAIGENScriptBase(scripts.Script):
                 p.extra_generation_params[f'{PREFIX} Vibe ID {i}'] = id
                 p.extra_generation_params[f'{PREFIX} Vibe IE {i}'] = ie
                 p.extra_generation_params[f'{PREFIX} Vibe Strength {i}'] = st
-            if '4' in self.model and self.cost_limiter and len(self.reference_image) > 4:
-                print (len(self.reference_image))
+            if self.isV4 and self.cost_limiter and len(self.reference_image) > 4:
                 self.reference_image = self.reference_image[:4]
-                print (len(self.reference_image))
                 self.reference_information_extracted = self.reference_information_extracted[:4]
                 self.reference_strength = self.reference_strength[:4]
                 self.comment(p,f"Cost Limiter: Reducing number of Vibe images to 4")
@@ -1384,10 +1382,9 @@ class NAIGENScriptBase(scripts.Script):
                 if normalize_level and total > 0 or total > 1.0:
                     if normalize_level: total /= normalize_level
                     for i in range(len(self.reference_image)):
-                        if self.reference_strength[i] > 0 or normalize_negatives != 2: self.reference_strength[i] /= total
-                        
-                p.extra_generation_params[f'{PREFIX} '+ 'normalize_negatives'] = normalize_negatives
-                p.extra_generation_params[f'{PREFIX} '+ 'normalize_level'] = normalize_level
+                        if self.reference_strength[i] > 0 or normalize_negatives != 2: self.reference_strength[i] /= total                        
+                if normalize_negatives: p.extra_generation_params[f'{PREFIX} '+ 'normalize_negatives'] = normalize_negatives
+                if normalize_level: p.extra_generation_params[f'{PREFIX} '+ 'normalize_level'] = normalize_level
                 self.normalize_reference_strength_multiple = False
                 
         if not self.use_v4_vibe or not self.isV4 and not self.reference_image:
@@ -1490,7 +1487,7 @@ class NAIGENScriptBase(scripts.Script):
                 c['uc' if negs else 'prompt'] = txt
                 if xy is not None: c['center'] = {'x':xy[0],'y':xy[1]}
                 index+=1
-            return prompt if index > 0 else original_prompt , text_tag
+            return prompt if index > 0 or text_tag else original_prompt , text_tag
             
         prompt, text_tag = parse(prompt,False)
         neg, _ = parse(neg,True)
@@ -1728,15 +1725,6 @@ class NAIGENScriptBase(scripts.Script):
             image = Image.composite(over, image, self.overlay_mask).convert('RGB')
             image.original_nai_image = original
             self.images[i] = image
-            if hasattr(self, 'mask_for_overlay') and self.mask_for_overlay and any([shared.opts.save_mask, shared.opts.save_mask_composite, shared.opts.return_mask, shared.opts.return_mask_composite]):
-                if shared.opts.return_mask:
-                    image_mask = self.mask_for_overlay.convert('RGB')
-                    fragments.append(image_mask)
-                    add_fragment(image_mask)
-                if shared.opts.return_mask_composite:
-                    image_mask_composite = Image.composite(image.convert('RGBA').convert('RGBa'), Image.new('RGBa', image.size), images.resize_image(2, self.mask_for_overlay, image.width, image.height).convert('L')).convert('RGBA')
-                    add_fragment(image_mask_composite)
-                    fragments.append(image_mask_composite)
         elif self.mask is not None:
             if shared.opts.data.get('nai_api_all_images', False): add_fragment()
             image = Image.composite(self.init_images[i % len(self.init_images)], self.images[i].convert('RGB'), self.overlay_mask).convert('RGB')
