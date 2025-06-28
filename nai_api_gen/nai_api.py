@@ -149,7 +149,7 @@ def STREAM(key,parameters, preview_func, attempts = 0, timeout = 120, wait_on_42
             r.message = ""
             r.files = []
             r.retry_count = attempt_count - 1
-            for line in r.iter_lines(decode_unicode = True):
+            for line in r.iter_lines(chunk_size = None,decode_unicode = True):
                 if ':' not in line: continue            
                 c,data,*_ = line.split(':',1)
                 c = c.strip().lower() 
