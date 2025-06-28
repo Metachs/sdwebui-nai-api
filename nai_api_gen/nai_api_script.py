@@ -1598,6 +1598,13 @@ class NAIGENScriptBase(scripts.Script):
                 
             return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]), overlay = False, mask = self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma,deliberate_euler_ancestral_bug=deliberate_euler_ancestral_bug,prefer_brownian=prefer_brownian, characterPrompts=chars,text_tag=text_tag,legacy_uc=legacy_uc,normalize_reference_strength_multiple=self.normalize_reference_strength_multiple)
         
+        
+        shared.state.job_count = p.n_iter
+        shared.state.job_no = 0
+        shared.state.sampling_step = 0
+        shared.state.current_image_sampling_step = 0
+        shared.state.sampling_steps = p.steps
+
         while len(self.images) < p.n_iter * p.batch_size and not shared.state.interrupted:
             DEBUG_LOG("Loading Images: ",len(self.images) // p.batch_size,p.n_iter, p.batch_size)
             count = len(self.images)
@@ -1610,7 +1617,9 @@ class NAIGENScriptBase(scripts.Script):
                     self.comment(p, f"Returned Dummy Image {i}:{len(self.images)}")
                 elif isimg2img and getattr(p,"inpaint_full_res",False) and shared.opts.data.get('nai_api_save_fragments', False):
                     images.save_image(self.images[i], p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix="-nai-init-image" if self.do_local_img2img != 0 else "")
-        
+            shared.state.job_no = len(self.images) // p.batch_size
+            shared.state.sampling_step = 0
+            shared.state.current_image_sampling_step = 0
         
         if self.do_local_img2img == 0:
            p.nai_processed = Processed(p, self.images, p.seed, self.texts[0] if len(self.texts) >0 else "", subseed=p.all_subseeds[0], infotexts = self.texts) 
@@ -1698,7 +1707,16 @@ class NAIGENScriptBase(scripts.Script):
     def load_image(self, p, i, parameters, batch_size = 1):    
         key = self.get_api_key()        
         self.begin_request(p,i,parameters)
-        result = nai_api.POST(key, parameters,timeout = nai_api.get_timeout(shared.opts.data.get('nai_api_timeout',90),p.width,p.height,p.steps), attempts = 1 if self.augment_mode else shared.opts.data.get('nai_api_retry', 2) , wait_on_429 = shared.opts.data.get('nai_api_wait_on_429', 30) , wait_on_429_time = shared.opts.data.get('nai_api_wait_on_429_time', 5),url = nai_api.NAI_AUGMENT_URL if self.augment_mode else nai_api.NAI_IMAGE_URL)
+        
+        if shared.opts.live_previews_enable and not self.augment_mode and self.isV4 and shared.opts.nai_api_preview:# and shared.opts.show_progress_every_n_steps >= 0:
+            def preview(img, step):            
+                shared.state.sampling_step = step
+                if step - shared.state.current_image_sampling_step >= shared.opts.show_progress_every_n_steps and shared.opts.show_progress_every_n_steps != -1:
+                    shared.state.assign_current_image(img)
+                    shared.state.current_image_sampling_step = step                
+            result = nai_api.STREAM(key, parameters, preview ,timeout = nai_api.get_timeout(shared.opts.nai_api_timeout,p.width,p.height,p.steps), attempts = shared.opts.nai_api_retry , wait_on_429 = shared.opts.nai_api_wait_on_429 , wait_on_429_time = shared.opts.nai_api_wait_on_429_time)            
+        else:
+            result = nai_api.POST(key, parameters,timeout = nai_api.get_timeout(shared.opts.nai_api_timeout,p.width,p.height,p.steps), attempts = 1 if self.augment_mode else shared.opts.nai_api_retry , wait_on_429 = shared.opts.nai_api_wait_on_429 , wait_on_429_time = shared.opts.nai_api_wait_on_429_time, url = nai_api.NAI_AUGMENT_URL if self.augment_mode else nai_api.NAI_IMAGE_URL)
                 
         if self.request_complete(p,i,result): 
             self.images.append(None)

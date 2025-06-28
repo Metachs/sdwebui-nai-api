@@ -26,6 +26,7 @@ NAIv45 = "nai-diffusion-4-5-full"
 
 NAI_IMAGE_URL = 'https://image.novelai.net/ai/generate-image'
 NAI_AUGMENT_URL = 'https://image.novelai.net/ai/augment-image'
+NAI_STREAM_URL = 'https://image.novelai.net/ai/generate-image-stream'
 
 nai_models = [NAIv45,NAIv4f,NAIv45cp,NAIv4cp,NAIv3,NAIv3f,NAIv2]
 
@@ -139,6 +140,44 @@ def get_timeout(timeout, width, height, steps):
     if midres or histep: return 35
     
     return 30
+    
+def STREAM(key,parameters, preview_func, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 0):
+    try:
+        r = requests.post(NAI_STREAM_URL,headers=get_headers(key), data=parameters.encode(),timeout= timeout,stream = True)
+        if r.status_code == 200:            
+            event = 'intermediate'
+            r.message = ""
+            r.files = []
+            r.retry_count = attempt_count - 1
+            for line in r.iter_lines(decode_unicode = True):
+                if ':' not in line: continue            
+                c,data,*_ = line.split(':',1)
+                c = c.strip().lower() 
+                if c.strip().lower() == 'event':
+                    event = data.strip()
+                elif c == 'data':
+                    dic = json.loads(data.strip())
+                    if event == 'intermediate':
+                        if dic['samp_ix'] == 0:
+                            try:
+                                preview_func(Image.open(BytesIO(base64.b64decode(dic['image'].encode()))), dic["step_ix"])
+                            except Exception as e:
+                                print (e)                        
+                    elif event =='final':
+                        try:
+                            r.files.append(Image.open(BytesIO(base64.b64decode(dic['image'].encode()))))
+                        except Exception as e:
+                            print (e)
+                    else:
+                        print("Unknown Event!", event , data[:300])
+                else:
+                    print("Unknown Line!", line[:300])
+            r.files.reverse()
+            return r
+    except Exception as e:
+        r = e
+    return CHECK(r, key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count+1,url = NAI_IMAGE_URL)
+    
     
 def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 0,url = 'https://image.novelai.net/ai/generate-image'):
     try:
