@@ -36,8 +36,8 @@ from nai_api_gen.nai_api_settings import DEBUG_LOG,get_recommended_schedule
 
 PREFIX = 'NAI'
 do_local_img2img_modes = ["One Pass: NAI Img2Img/Inpaint", "Two Pass: NAI Txt2Img > Local Img2Img (Ignore Source Image)","Two Pass: NAI Img2Img/Inpaint > Local Img2Img"]
-inpaint_mode_default = "Infill (No Denoise Strength)"
-inpaint_mode_choices= [inpaint_mode_default,"Img2Img (Use Denoise Strength)" ]
+inpaint_mode_default = "Inpaint Model"
+inpaint_mode_choices= [inpaint_mode_default,"Img2Img" ]
 base_dir = scripts.basedir()
 elempfx = 'txt2img'
 
@@ -177,7 +177,7 @@ class NAIGENScriptBase(scripts.Script):
             vibe_fields = []
             
             def dovibe(idx):
-                with gr.Accordion(label=f'Vibe Transfer {idx+1}', open=False) : 
+                with gr.Accordion(label=f'V3 Vibe Transfer {idx+1}', open=False) : 
                     fields = dovibefields(idx+1)
                     for fi in range(len(fields)):
                         if fi >= len(vibe_fields): vibe_fields.append([])
@@ -761,7 +761,7 @@ class NAIGENScriptBase(scripts.Script):
                 vibe_fields4[fi].append(fields[fi])
             if idx+1<self.vibe_count_v4: dovibe4(idx+1)                
 
-        with gr.Accordion(label=f'Vibe Transfer v4', open=True, elem_id=f"nai_vibe_v4_{elempfx}") as vibes_v4:
+        with gr.Accordion(label=f'Vibe Transfer', open=True, elem_id=f"nai_vibe_v4_{elempfx}") as vibes_v4:
             with gr.Row():
                 normalize_reference_strength_multiple = gr.Checkbox(value=True, label=f"Normalize",min_width=64)
                 normalize_negatives = gr.Dropdown(value="Abs", label=f"Negatives", choices= ["Abs", "Zero", "Ignore"], type="index", visible = True,min_width=64)

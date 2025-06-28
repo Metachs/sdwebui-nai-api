@@ -1,19 +1,15 @@
-# Modified Unlicensed code nabbed from an abandoned repo 
-# https://github.com/ashen-sensored/sd_webui_stealth_pnginfo
-# Code remains unlicensed 
-
 from modules import script_callbacks, shared, generation_parameters_copypaste
 from modules.script_callbacks import ImageSaveParams
-import gradio as gr
 from modules import images,errors
 from PIL import Image
-from gradio import processing_utils
 import PIL
+import gradio as gr
 import warnings
 import gzip
 import math
 import json
 
+from nai_api_gen.nai_read_stealth import read_stealth
 from nai_api_gen.nai_api_settings import get_set_noise_schedule
 from nai_api_gen.nai_api import prompt_to_a1111, prompt_to_nai,tryfloat,get_skip_cfg_above_sigma
 from nai_api_gen import nai_api
@@ -241,10 +237,11 @@ def process_nai_geninfo(items):
     
     if model ==  "NovelAI Diffusion V4 F6E18726" in model: model = nai_api.NAIv4cp 
     elif model ==  "NovelAI Diffusion V4.5 B5A2A797" in model: model = nai_api.NAIv45cp 
-    elif model ==  "NovelAI Diffusion V4 4F49EC75" or 'NovelAI Diffusion V4' in model: model = nai_api.NAIv4 
+    elif model ==  "NovelAI Diffusion V4 4F49EC75" in model: model = nai_api.NAIv4 
     elif model ==  "Stable Diffusion F1022D28": model = nai_api.NAIv2
     elif model ==  "Stable Diffusion XL 9CC2F394": model = nai_api.NAIv3f
     elif model ==  "NovelAI Diffusion V4.5 B9F340FD": model = nai_api.NAIv45
+    elif model ==  "NovelAI Diffusion V4.5 1229B44F": model = nai_api.NAIv45
     else: model = nai_api.NAIv3
         
     add('model',value = model)
@@ -370,8 +367,7 @@ def has_stealth_pnginfo(image):
 def dummy_stealth_read(image):
     return None
 
-def read_info_from_image_stealth(image,force_stealth = False):
-    # Standard Metadata
+def read_info_from_image_stealth(image):
     try:    
         if image.info is not None and image.info.get("Software", None) == "NovelAI":
             if image.info.get('parameters',None) and len(image.info['parameters']) > 10:
@@ -397,120 +393,16 @@ def read_info_from_image_stealth(image,force_stealth = False):
         geninfo, items = None, {}
         
     if not shared.opts.data.get("nai_api_png_info_read", True) or has_stealth_infotext: return geninfo, items
-    # Stealth PNG Info
-    width, height = image.size
-    pixels = image.load()
-
-    has_alpha = True if image.mode == 'RGBA' else False
     
-    if not has_alpha: return geninfo,items
-    
-    mode = None
-    compressed = False
-    binary_data = ''
-    buffer_a = ''
-    buffer_rgb = ''
-    index_a = 0
-    index_rgb = 0
-    sig_confirmed = False
-    confirming_signature = True
-    reading_param_len = False
-    reading_param = False
-    read_end = False
-    for x in range(width):
-        for y in range(height):
-            if has_alpha:
-                r, g, b, a = pixels[x, y]
-                buffer_a += str(a & 1)
-                index_a += 1
-            else:
-                r, g, b = pixels[x, y]
-            buffer_rgb += str(r & 1)
-            buffer_rgb += str(g & 1)
-            buffer_rgb += str(b & 1)
-            index_rgb += 3
-            if confirming_signature:
-                if index_a == len('stealth_pnginfo') * 8:
-                    decoded_sig = bytearray(int(buffer_a[i:i + 8], 2) for i in
-                                            range(0, len(buffer_a), 8)).decode('utf-8', errors='ignore')
-                    if decoded_sig in {'stealth_pnginfo', 'stealth_pngcomp'}:
-                        confirming_signature = False
-                        sig_confirmed = True
-                        reading_param_len = True
-                        mode = 'alpha'
-                        if decoded_sig == 'stealth_pngcomp':
-                            compressed = True
-                        buffer_a = ''
-                        index_a = 0
-                    else:
-                        read_end = True
-                        break
-                elif index_rgb == len('stealth_pnginfo') * 8:
-                    decoded_sig = bytearray(int(buffer_rgb[i:i + 8], 2) for i in
-                                            range(0, len(buffer_rgb), 8)).decode('utf-8', errors='ignore')
-                    if decoded_sig in {'stealth_rgbinfo', 'stealth_rgbcomp'}:
-                        confirming_signature = False
-                        sig_confirmed = True
-                        reading_param_len = True
-                        mode = 'rgb'
-                        if decoded_sig == 'stealth_rgbcomp':
-                            compressed = True
-                        buffer_rgb = ''
-                        index_rgb = 0
-            elif reading_param_len:
-                if mode == 'alpha':
-                    if index_a == 32:
-                        param_len = int(buffer_a, 2)
-                        reading_param_len = False
-                        reading_param = True
-                        buffer_a = ''
-                        index_a = 0
-                else:
-                    if index_rgb == 33:
-                        pop = buffer_rgb[-1]
-                        buffer_rgb = buffer_rgb[:-1]
-                        param_len = int(buffer_rgb, 2)
-                        reading_param_len = False
-                        reading_param = True
-                        buffer_rgb = pop
-                        index_rgb = 1
-            elif reading_param:
-                if mode == 'alpha':
-                    if index_a == param_len:
-                        binary_data = buffer_a
-                        read_end = True
-                        break
-                else:
-                    if index_rgb >= param_len:
-                        diff = param_len - index_rgb
-                        if diff < 0:
-                            buffer_rgb = buffer_rgb[:diff]
-                        binary_data = buffer_rgb
-                        read_end = True
-                        break
-            else:
-                # impossible
-                read_end = True
-                break
-        if read_end:
-            break
-    if sig_confirmed and binary_data != '':
-        # Convert binary string to UTF-8 encoded text
-        byte_data = bytearray(int(binary_data[i:i + 8], 2) for i in range(0, len(binary_data), 8))
+    try:
+        geninfo = read_stealth(image)
         try:
-            if compressed:
-                decoded_data = gzip.decompress(bytes(byte_data)).decode('utf-8')                
-            else:
-                decoded_data = byte_data.decode('utf-8', errors='ignore')
-            geninfo = decoded_data
-            try:
-                items = json.loads(decoded_data)
-                if items is not None and items.get("Software", None) == "NovelAI": 
-                    return process_nai_geninfo(items)
-            except Exception as e:
-                errors.display(e,'read_info_from_image_stealth')
-        except Exception as e:
-            errors.display(e,'read_info_from_image_stealth')
-            
-    return geninfo, items
+            items = json.loads(geninfo)
+        except:
+            pass
+        if items and items.get("Software", None) == "NovelAI": 
+            return process_nai_geninfo(items)
+    except Exception as e:
+        errors.display(e,'read_info_from_image_stealth')
 
+    return geninfo,items
