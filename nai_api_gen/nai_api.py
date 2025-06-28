@@ -160,7 +160,7 @@ def STREAM(key,parameters, preview_func, attempts = 0, timeout = 120, wait_on_42
                     if event == 'intermediate':
                         if dic['samp_ix'] == 0:
                             try:
-                                preview_func(Image.open(BytesIO(base64.b64decode(dic['image'].encode()))), dic["step_ix"])
+                                preview_func(dic['image'], dic["step_ix"])
                             except Exception as e:
                                 print (e)                        
                     elif event =='final':

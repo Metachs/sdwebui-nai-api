@@ -1642,7 +1642,7 @@ class NAIGENScriptBase(scripts.Script):
         parameters = getparams(i)
         self.load_image(p,i, parameters)
         self.process_result_image(p, i)
-        if shared.opts.live_previews_enable and self.images[i]!=None: 
+        if shared.opts.live_previews_enable and self.images[i]!=None and p.n_iter > 1: 
             shared.state.assign_current_image(self.images[i].copy())
         if i == 0 and self.texts[i]:
             import modules.paths as paths
@@ -1712,8 +1712,8 @@ class NAIGENScriptBase(scripts.Script):
             def preview(img, step):            
                 shared.state.sampling_step = step
                 if step - shared.state.current_image_sampling_step >= shared.opts.show_progress_every_n_steps and shared.opts.show_progress_every_n_steps != -1:
-                    shared.state.assign_current_image(img)
-                    shared.state.current_image_sampling_step = step                
+                    shared.state.assign_current_image(Image.open(BytesIO(base64.b64decode(img.encode()))))
+                    shared.state.current_image_sampling_step = step
             result = nai_api.STREAM(key, parameters, preview ,timeout = nai_api.get_timeout(shared.opts.nai_api_timeout,p.width,p.height,p.steps), attempts = shared.opts.nai_api_retry , wait_on_429 = shared.opts.nai_api_wait_on_429 , wait_on_429_time = shared.opts.nai_api_wait_on_429_time)            
         else:
             result = nai_api.POST(key, parameters,timeout = nai_api.get_timeout(shared.opts.nai_api_timeout,p.width,p.height,p.steps), attempts = 1 if self.augment_mode else shared.opts.nai_api_retry , wait_on_429 = shared.opts.nai_api_wait_on_429 , wait_on_429_time = shared.opts.nai_api_wait_on_429_time, url = nai_api.NAI_AUGMENT_URL if self.augment_mode else nai_api.NAI_IMAGE_URL)
