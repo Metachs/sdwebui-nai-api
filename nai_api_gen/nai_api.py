@@ -272,6 +272,7 @@ def get_vibe_encoding(key,model,reference_image,params,timeout = 120):
 vibe_model_names = {
     NAIv4f:"v4full", 
     NAIv4cp:"v4curated",
+    NAIv45:"v4-5full",
 }
 
 def create_encoding_file(encoding, model, name = None):
@@ -769,7 +770,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     if image is not None:    
         action = 'img2img'
         params['image']=image
-        params['strength'] = tryfloat(strength, 0.5)
+        strength = tryfloat(strength, 0.5)
+        params['strength'] = strength
         params['noise'] = tryfloat(noise, 0.0)
         params['extra_noise_seed'] = int(extra_noise_seed or seed)
         if mask is None: params['color_correct'] = bool(color_correct)
@@ -786,6 +788,8 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             if "ddim" in sampler.lower():
                 print("DDIM Not supported for Inpainting, switching to Euler")
                 sampler = "k_euler"
+            params['inpaintImg2ImgStrength'] = strength
+        params['img2img'] = { 'strength': strength, 'color_correct': bool(color_correct) }
         #else: overlay = False
     else:
         action = 'generate'
