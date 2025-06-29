@@ -1752,7 +1752,7 @@ class NAIGENScriptBase(scripts.Script):
 def maskblur(image, val):
     size = 2 * int(2.5 * val + 0.5) + 1
     ar = cv2.GaussianBlur(np.array(image), (size, size), val)
-    return Image.fromarray(ar)
+    return Image.fromarray(ar.astype(np.uint8))
 def maskblur2(image, val, iterations=1):
     for i in range(iterations):
         image = image.filter(ImageFilter.BoxBlur(val))
@@ -1760,7 +1760,7 @@ def maskblur2(image, val, iterations=1):
 def clip(image,val):
     ar = np.array(image)
     ar = np.where(ar>=val,255,0)
-    return Image.fromarray(ar).convert("L")
+    return Image.fromarray(ar.astype(np.uint8))
 def expand_mask(mask,amount):
     amount = int(amount)
     oversrc = Image.new("L", mask.size, 0)
@@ -1770,7 +1770,7 @@ def expand_mask(mask,amount):
         nonlocal expand
         over= oversrc.copy()
         over.paste(mask,(x,y))
-        expand = ImageChops.lighter(expand,over)        
+        expand = ImageChops.lighter(expand,over)
     past(amount,0)
     past(amount,amount)
     past(0,amount)
