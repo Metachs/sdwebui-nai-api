@@ -1652,8 +1652,9 @@ class NAIGENScriptBase(scripts.Script):
     def begin_request(self,p,i,parameters):    
 
         print(f"Requesting Image {i+1}/{p.n_iter*p.batch_size}: {p.width} x {p.height} - {p.steps} steps.")
-        if shared.opts.data.get('nai_query_logging', False):                     
-            print(re.sub("\"image\":\s?\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\s?\".*?\"","\"mask\":\"\"" ,re.sub("\"reference_image\":\s?\".*?\"","\"reference_image\":\"\"" ,re.sub("\"reference_image_multiple\":\s?\[.*?\]","\"reference_image_multiple\":\"\"" ,parameters)))))
+        if shared.opts.data.get('nai_query_logging', False):     
+            
+            print(re.sub("\"image\":\s?\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\s?\".*?\"","\"mask\":\"\"" ,re.sub("\"reference_image\":\s?\".*?\"","\"reference_image\":\"\"" ,re.sub("\"reference_image_multiple\":\s?\[.*?\]","\"reference_image_multiple\":\"\"" ,json.dumps(parameters))))))
 
         minimum_delay = shared.opts.data.get('nai_api_delay', 0)
         wait_time_rand = shared.opts.data.get('nai_api_delay_rand', 0)
@@ -1685,22 +1686,8 @@ class NAIGENScriptBase(scripts.Script):
             retry_count += result.retry_count
                 
         if retry_count>0: msg = f'{msg} Retries: {retry_count:.2f}s'
-        if gentime>0: msg = f'{msg} Generation time: {gentime:.2f}s'
-        if gentime>0 and retry_count==0:
-            if not hasattr(self,'times'):
-                self.waits=[]
-                self.times=[]
-                self.rats=[]
-                self.gents=[]
-            self.rats.append((self.last_request_time - start -gentime)/(self.last_request_time - start))
-            self.gents.append(gentime)
-            self.waits.append(self.last_request_time - start -gentime)
-            self.times.append(self.last_request_time - start)
-            msg = f'{msg} Wait Time: {self.last_request_time - start -gentime:.2f}s'
-            msg = f'{msg} Average Gen: {sum(self.gents)/len(self.gents):.2f}s'
-            msg = f'{msg} Average Total: {sum(self.times)/len(self.times):.2f}s'
-            msg = f'{msg} Average Wait: {sum(self.waits)/len(self.waits):.2f}s'
-            msg = f'{msg} Ratio: {sum(self.rats)/len(self.rats):.2f}'
+        if gentime>=0.01: msg = f'{msg} Generation time: {gentime:.2f}s'
+        
         if not has_error and idx == 0: self.comment(p,msg)
         return has_error
         
@@ -1708,11 +1695,11 @@ class NAIGENScriptBase(scripts.Script):
         key = self.get_api_key()        
         self.begin_request(p,i,parameters)
         
-        if shared.opts.live_previews_enable and not self.augment_mode and self.isV4 and shared.opts.nai_api_preview:# and shared.opts.show_progress_every_n_steps >= 0:
+        if shared.opts.live_previews_enable and not self.augment_mode and self.isV4 and shared.opts.nai_api_preview:
             def preview(img, step):            
                 shared.state.sampling_step = step
                 if step - shared.state.current_image_sampling_step >= shared.opts.show_progress_every_n_steps and shared.opts.show_progress_every_n_steps != -1:
-                    shared.state.assign_current_image(Image.open(BytesIO(base64.b64decode(img.encode()))))
+                    shared.state.assign_current_image(Image.open(BytesIO(img)))
                     shared.state.current_image_sampling_step = step
             result = nai_api.STREAM(key, parameters, preview ,timeout = nai_api.get_timeout(shared.opts.nai_api_timeout,p.width,p.height,p.steps), attempts = shared.opts.nai_api_retry , wait_on_429 = shared.opts.nai_api_wait_on_429 , wait_on_429_time = shared.opts.nai_api_wait_on_429_time)            
         else:

@@ -12,6 +12,14 @@ import requests
 import random
 import json
 
+USE_MSGPACK = True
+try:
+    import msgpack
+except:
+    print("Could not import msgpack, NAI API Preview Streaming Disabled.")
+    USE_MSGPACK = False
+
+
 NAIv1 = "nai-diffusion"
 NAIv1c = "safe-diffusion"
 NAIv1f = "nai-diffusion-furry"
@@ -140,53 +148,51 @@ def get_timeout(timeout, width, height, steps):
     if midres or histep: return 35
     
     return 30
-    
+
 def STREAM(key,parameters, preview_func, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 0):
+    if not USE_MSGPACK: return POST(key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count, url = NAI_IMAGE_URL)
     try:
-        r = requests.post(NAI_STREAM_URL,headers=get_headers(key), data=parameters.encode(),timeout= timeout,stream = True)
-        if r.status_code == 200:            
-            event = 'intermediate'
+        parameters['parameters']['stream'] = 'msgpack'
+        r = requests.post(NAI_STREAM_URL,headers=get_headers(key), json=parameters ,timeout= timeout,stream = True)
+        if r.status_code == 200:
             r.message = ""
             r.files = []
-            r.retry_count = attempt_count - 1
-            for line in r.iter_lines(chunk_size = None,decode_unicode = True):
-                if ':' not in line: continue            
-                c,data,*_ = line.split(':',1)
-                c = c.strip().lower() 
-                if c.strip().lower() == 'event':
-                    event = data.strip()
-                elif c == 'data':
-                    dic = json.loads(data.strip())
-                    if event == 'intermediate':
-                        if dic['samp_ix'] == 0:
-                            try:
-                                preview_func(dic['image'], dic["step_ix"])
-                            except Exception as e:
-                                print (e)                        
-                    elif event =='final':
-                        try:
-                            r.files.append(Image.open(BytesIO(base64.b64decode(dic['image'].encode()))))
-                        except Exception as e:
-                            print (e)
-                    else:
-                        print("Unknown Event!", event , data[:300])
-                else:
-                    print("Unknown Line!", line[:300])
+            r.retry_count = 0
+            content = b''
+            for chunk in r.iter_content(chunk_size=None):
+                content += chunk
+                while content:
+                    i = int.from_bytes(content[:4],"big")
+                    if i == 0 or len(content) < 4 + i: break
+                    msg = content[4:i+4]
+                    content = content[i+4:]
+                    try: dic = msgpack.unpackb(msg)
+                    except Exception as e: 
+                        print("Error Unpacking NAI Stream", e)
+                        continue
+                    try:
+                        if dic['event_type'] == 'intermediate' and dic['samp_ix'] == 0: 
+                            preview_func(dic['image'], dic['step_ix'])       
+                        elif dic['event_type'] =='final': r.files.append(Image.open(BytesIO(dic['image'])))
+                        else: print (dic['event_type'])
+                    except:
+                        if dic['event_type'] == 'final' and dic['samp_ix'] == 0 and not r.files: raise
+            if content: print (f"Unread content in NAI stream, Length:" , len(content))
             r.files.reverse()
             return r
-    except Exception as e:
-        r = e
+    except Exception as e: r = e
+    
+    if 'stream' in parameters['parameters']: del parameters['parameters']['stream']        
     return CHECK(r, key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count+1,url = NAI_IMAGE_URL)
-    
-    
-def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 0,url = 'https://image.novelai.net/ai/generate-image'):
+
+def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 0, url = NAI_IMAGE_URL):
     try:
-        r = requests.post(url,headers=get_headers(key), data=parameters.encode(),timeout= timeout) 
+        r = requests.post(url,headers=get_headers(key), json=parameters, timeout= timeout) 
     except Exception as e:
         r = e
     return CHECK(r, key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count+1,url = url)
 
-def CHECK(r,key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 1,url = 'https://image.novelai.net/ai/generate-image'):
+def CHECK(r,key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 1, url = NAI_IMAGE_URL):
     r.message = ""
     r.files = []
     r.retry_count = attempt_count - 1
@@ -227,11 +233,11 @@ def CHECK(r,key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_o
             e.status_code = -1
             return e
     
-def GPOST( params , attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5,url = 'https://image.novelai.net/ai/generate-image'):
+def GPOST( params , attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5,url = NAI_IMAGE_URL):
     import grequests
     rs=[]
     for key, parameters in params:
-        rs.append(grequests.post('https://image.novelai.net/ai/generate-image',headers=get_headers(key), data=parameters.encode(),timeout= timeout))        
+        rs.append(grequests.post(url,headers=get_headers(key), json=parameters,timeout= timeout))        
     rs = grequests.map(rs, exception_handler = lambda r,e:e)
     
     for ri in range(len(rs)):
@@ -295,7 +301,7 @@ def get_vibe_encoding(key,model,reference_image,params,timeout = 120):
     for k in params.keys(): payload[k] = params[k]
     url = 'https://image.novelai.net/ai/encode-vibe'
     try:
-        response = requests.post(url,headers=get_headers(key), data=json.dumps(payload).encode(),timeout= timeout) 
+        response = requests.post(url,headers=get_headers(key), json=payload ,timeout= timeout) 
         if response.status_code==200: 
             return base64.b64encode(response.content).decode("utf-8")  
         try: response.message = f"{response.status_code} Error: {json.loads(response.text).get('message')}"
@@ -696,31 +702,24 @@ def clean_prompt(p):
     return p
     
 def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
-    prompt=clean_prompt(prompt)
-    if mode == 'emotion' and emotion and emotion in augment_emotions:
-        prompt = f"{emotion.lower()};;{prompt}"
-    if prompt:
-        prompt = f',"prompt":{json.dumps(prompt)}'
-    else: prompt = ''
-    defry = f',"defry":{int(defry)}'
+    payload = {"req_type":mode, "width":int(width), "height":int(height)}
     
+    if mode in ['colorize', 'emotion']: 
+        prompt=clean_prompt(prompt)    
+        if mode == 'emotion' and emotion and emotion in augment_emotions:
+            prompt = f"{emotion.lower()};;{prompt}"
+        payload['prompt'] = prompt
+        payload['defry'] = int(defry)
+        
     if isinstance(image, Image.Image):
-        # print(image.mode, image.width, image.height)
-        # image.save(r"D:\AI\SDout\ImageWut_"+f"{time.time()}.png")
         image_byte_array = BytesIO()
         image.save(image_byte_array, format='PNG')
         image = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
         
-    if image: image = f',"image":"{image}"' 
-    else: image = f',"image":""'
-
-    if mode not in ['colorize', 'emotion' ]: 
-        prompt = ''
-        defry = ''
-    seed = f',"seed":{int(seed)}' if seed != -1 else ''
-    # with open(r"D:\AI\SDout\ara_"+f"{time.time()}.txt", "w", encoding="utf8") as file:
-        # file.write(f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{defry or ""}{prompt or ""}{seed or ""}}}')
-    return f'{{"req_type":"{mode}","width":{int(width)},"height":{int(height)}{image or ""}{defry or ""}{prompt or ""}{seed or ""}}}'
+    payload['image'] = image    
+    if seed != -1: payload['seed'] = int(seed)    
+    
+    return payload
 
 def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = None , reference_strength = None,n_samples = 1,variety = False,skip_cfg_above_sigma = None,deliberate_euler_ancestral_bug=None,prefer_brownian=None, characterPrompts = None, text_tag = None, legacy_uc = False,normalize_reference_strength_multiple = False, color_correct = True):
 
@@ -889,7 +888,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         params['sm_dyn'] = sm_dyn
     else: 
         params['autoSmea'] = sm
-    return json.dumps(payload)
+    return payload
     
 def GrayLevels(image, inlo = 0, inhi = 255, mid = 128, outlo = 0, outhi = 255):
     from PIL import Image,ImageMath
