@@ -159,6 +159,9 @@ def STREAM(key,parameters, preview_func, attempts = 0, timeout = 120, wait_on_42
             r.files = []
             r.retry_count = 0
             content = b''
+            def Err(m):
+                print (m)
+                r.message += m + '\n'
             for chunk in r.iter_content(chunk_size=None):
                 content += chunk
                 while content:
@@ -166,23 +169,24 @@ def STREAM(key,parameters, preview_func, attempts = 0, timeout = 120, wait_on_42
                     if i == 0 or len(content) < 4 + i: break
                     msg = content[4:i+4]
                     content = content[i+4:]
-                    try: dic = msgpack.unpackb(msg)
-                    except Exception as e: 
-                        print("Error Unpacking NAI Stream", e)
-                        continue
                     try:
+                        dic = msgpack.unpackb(msg)
                         if dic['event_type'] == 'intermediate' and dic['samp_ix'] == 0: 
                             preview_func(dic['image'], dic['step_ix'])       
-                        elif dic['event_type'] =='final': r.files.append(Image.open(BytesIO(dic['image'])))
-                        else: print (dic['event_type'])
-                    except:
-                        if dic['event_type'] == 'final' and dic['samp_ix'] == 0 and not r.files: raise
-            if content: print (f"Unread content in NAI stream, Length:" , len(content))
-            r.files.reverse()
-            return r
+                        elif dic['event_type'] == 'final': r.files.append(Image.open(BytesIO(dic['image'])))
+                        elif dic['event_type'] == 'error': Err(f"Error in NAI Stream: {json.dumps(dic)}")
+                        else: Err(f"Unhandled Event in NAI Stream: {json.dumps(dic)}")
+                    except Exception as e: Err(f"Error Unpacking NAI Stream: {e}")
+                        
+            if content: Err(f"Unread content in NAI stream, Length: {len(content)}")
+            
+            if r.files:
+                r.files.reverse()
+                return r
+            r.status_code = 520
     except Exception as e: r = e
     
-    if 'stream' in parameters['parameters']: del parameters['parameters']['stream']        
+    if 'stream' in parameters['parameters']: del parameters['parameters']['stream']
     return CHECK(r, key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count+1,url = NAI_IMAGE_URL)
 
 def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 0, url = NAI_IMAGE_URL):
@@ -193,12 +197,12 @@ def POST(key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_4
     return CHECK(r, key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count+1,url = url)
 
 def CHECK(r,key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5, attempt_count = 1, url = NAI_IMAGE_URL):
-    r.message = ""
-    r.files = []
+    if not hasattr(r, 'message'): r.message = ""
+    if not hasattr(r, 'files'): r.files = []
     r.retry_count = attempt_count - 1
     if isinstance(r,requests.exceptions.Timeout):
         r.status_code = 408
-        r.message = f"Request Timeout."        
+        r.message = f"Request Timeout."
         if attempt_count > attempts: return r
         print(f"Request Timed Out after {timeout} seconds, Retrying")
         return POST(key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count,url = url)
@@ -207,9 +211,10 @@ def CHECK(r,key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_o
         r.message = 'Unhandled Exception'
         return r
     elif r.status_code != 200:
-        try: r.message = f"{r.status_code} Error: {json.loads(r.text).get('message')}" 
-        except: r.message = f"{r.status_code} Error"
-        print(r.message)
+        if not r.message:
+            try: r.message = f"{r.status_code} Error: {json.loads(r.text).get('message')}" 
+            except: r.message = f"{r.status_code} Error"
+            print(r.message)
         if r.status_code in TERMINAL_ERRORS or any(tem in r.message for tem in TERMINAL_ERROR_MESSAGES): 
             return r
         if r.status_code == 429 and wait_on_429 > 0:
@@ -222,16 +227,16 @@ def CHECK(r,key,parameters, attempts = 0, timeout = 120, wait_on_429 = 0, wait_o
             print(f"Error {r.status_code}: {r.message}, Retrying")
             time.sleep(attempt_count*2-1)
         return POST(key, parameters, attempts = attempts, timeout=timeout, wait_on_429=wait_on_429, wait_on_429_time=wait_on_429_time, attempt_count=attempt_count,url = url)
-    else:
+    elif not r.files:
         try:
             with ZipFile(BytesIO(r.content)) as zip_file:
                 for fn in zip_file.namelist():
                     r.files.append(Image.open(BytesIO(zip_file.read(fn))))
-                return r
         except Exception as e:
             print(f"NAI Image Load Failure - Could not read image File")
             e.status_code = -1
             return e
+    return r
     
 def GPOST( params , attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_time = 5,url = NAI_IMAGE_URL):
     import grequests

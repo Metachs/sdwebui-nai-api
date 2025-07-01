@@ -639,7 +639,6 @@ class NAIGENScriptBase(scripts.Script):
                 for i, img in enumerate(v3images):
                     print (i)
                     if not img or i>=len(ids): continue
-                    print ("YAY")
                     image_byte_array = BytesIO()
                     img.save(image_byte_array, format='PNG')
                     ids[i] = "data:image/png;base64," + base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
@@ -1674,8 +1673,8 @@ class NAIGENScriptBase(scripts.Script):
         gentime = 0
         retry_count = 0
         for i, result in enumerate(results):   
-            if result.status_code == 200:
-                if result.files and isinstance(result.files[0], Image.Image):
+            if result.status_code == 200 and result.files:
+                if isinstance(result.files[0], Image.Image):
                     gentime = max(gentime, nai_api.tryfloat(result.files[0].info.get('Generation time',0),0))
             else:
                 err = f'Request {idx + i + 1}/{p.n_iter*p.batch_size}: {result.message}'                

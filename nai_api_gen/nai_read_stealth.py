@@ -7,7 +7,7 @@ import PIL
 import gzip
 import math
 
-def read_stealth(image):
+def read_stealth(image, max_sig_look = -1):
     width, height = image.size
     pixels = image.load()
 
@@ -26,6 +26,8 @@ def read_stealth(image):
     reading_param = False
     read_end = False
     for x in range(width):
+        if confirming_signature and max_sig_look > 0 and x > max_sig_look:
+            break
         for y in range(height):
             if has_alpha:
                 r, g, b, a = pixels[x, y]
