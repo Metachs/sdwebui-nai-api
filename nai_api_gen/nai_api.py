@@ -260,14 +260,17 @@ def GET(key, attempts = 5, timeout = 30):
         return e
 
 def subscription_status(key):
-    if not key: return -1,False,0,0        
+    return subscription_info(key)[1:]
+    
+def subscription_info(key):
+    if not key: return None,-1,False,0,0   
     response = GET(key)
     if response is not None and isinstance(response,requests.exceptions.RequestException):
         print("Subscription Status Check Timed Out, Try Again.")
-        return 408,False,0,0
+        return None,408,False,0,0
     if response is None or not hasattr(response,'status_code'):
         print ("Unknown Error", response)
-        return 404,False,0,0
+        return None,404,False,0,0
     if response.status_code==200:
         content = response.json()
         def max_unlimited():
@@ -279,9 +282,9 @@ def subscription_status(key):
         active = content['active']        
         unlimited = active and max >= 1048576        
         points = content['trainingStepsLeft']['fixedTrainingStepsLeft']+content['trainingStepsLeft']['purchasedTrainingSteps']        
-        return response.status_code, unlimited, points, max
+        return content, response.status_code, unlimited, points, max 
     else: print (response.status_code)
-    return response.status_code,False,0,0
+    return None,response.status_code,False,0,0
 
 def tryfloat(value, default = None):
     try:
@@ -888,6 +891,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         params['sm_dyn'] = sm_dyn
     else: 
         params['autoSmea'] = sm
+        
     return payload
     
 def GrayLevels(image, inlo = 0, inhi = 255, mid = 128, outlo = 0, outhi = 255):
@@ -1061,3 +1065,16 @@ def nai_v4_to_sd(s):
         w=f'{w:.5f}'.rstrip('0').rstrip('.')
         txt += s if w=='1' else f'({s}:{w})'
     return txt
+
+def shorten(o, stub = None, maxlen = 3000):
+    if isinstance(o, dict): 
+        o = o.copy()
+        for k in o.keys():
+            o[k] = shorten(o[k], stub, maxlen)
+    elif isinstance(o, list): 
+        o = [shorten(x, stub, maxlen) for x in o]
+    elif isinstance(o, str) and len(o) > maxlen: 
+        return o[:stub] + '...' if stub is not None else ""
+    elif isinstance(o, bytes) and len(o) > maxlen: 
+        return o[:stub] + b'...' if stub is not None else b""
+    return o

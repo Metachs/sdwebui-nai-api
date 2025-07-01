@@ -38,6 +38,9 @@ def on_ui_settings():
     
     
     
+    addopt('nai_api_vibe_always_encode', shared.OptionInfo(False, "Always encode Vibe reference images regardless of cost limiter.",gr.Checkbox, section=section))
+    
+    
     addopt('nai_api_vibe_count', shared.OptionInfo(4, "Maximum Number of Vibe Transfer Images, Requires Restart",gr.Slider, {"minimum":  1, "maximum": 32, "step": 1}, section=section))
     
     

@@ -1344,7 +1344,7 @@ class NAIGENScriptBase(scripts.Script):
                             en = False
                     else:
                         enc = nai_api.get_encoding(vibe, ie, self.model)
-                        if not enc and not self.cost_limiter:
+                        if not enc and (not self.cost_limiter or shared.opts.nai_api_vibe_always_encode):
                             self.incurs_cost = True
                             rslt, vibe = self.vibe_request_encoding(vibe, ie, model)
                             if rslt:
@@ -1653,8 +1653,7 @@ class NAIGENScriptBase(scripts.Script):
 
         print(f"Requesting Image {i+1}/{p.n_iter*p.batch_size}: {p.width} x {p.height} - {p.steps} steps.")
         if shared.opts.data.get('nai_query_logging', False):     
-            
-            print(re.sub("\"image\":\s?\".*?\"","\"image\":\"\"" ,re.sub("\"mask\":\s?\".*?\"","\"mask\":\"\"" ,re.sub("\"reference_image\":\s?\".*?\"","\"reference_image\":\"\"" ,re.sub("\"reference_image_multiple\":\s?\[.*?\]","\"reference_image_multiple\":\"\"" ,json.dumps(parameters))))))
+            print(nai_api.shorten(parameters))
 
         minimum_delay = shared.opts.data.get('nai_api_delay', 0)
         wait_time_rand = shared.opts.data.get('nai_api_delay_rand', 0)
