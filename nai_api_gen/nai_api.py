@@ -331,7 +331,10 @@ vibe_model_names = {
 def create_encoding_file(encoding, model, name = None):
     hash = hashlib.sha256(encoding.encode()).hexdigest()
     if not name: name = f"{hash[:6]}-{hash[-6:]}"
-    vmodel = vibe_model_names.get(model, 'v4full')
+    vmodel = vibe_model_names.get(model, None)
+    if not vmodel:
+        print("Unknown Encoding Model, Could not import.")
+        return None
     file = {
         "identifier": "novelai-vibe-transfer",
         "version": 1,

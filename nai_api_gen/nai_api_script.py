@@ -870,11 +870,16 @@ class NAIGENScriptBase(scripts.Script):
                 print (ieval)
             elif len(vid)> 2560: #ludicrously long id is probably a whole encoding. 
                 vibe = self.vibe_create_encoding(vid,model)
-                vid = vibe['id']                
+                if vibe: vid = vibe['id']
             else:            
                 vibe = self.find_vibe_file(vid)
 
-            if not vibe: 
+            if not vibe and len(vid)> 2560:
+                vname = f"Unrecognized Encoding"
+                preview_image = None
+                ie = gr.update(interactive=True)
+                is_encoding = True                
+            elif not vibe: 
                 print("Vibe File Not Found")
                 vname = f"Unknown ID: {vid}"
                 preview_image = None
@@ -936,6 +941,7 @@ class NAIGENScriptBase(scripts.Script):
         
     def vibe_create_encoding(self, encoding, model):
         vibe = nai_api.create_encoding_file(encoding,model)
+        if not vibe: return vibe
         id = vibe['id']
         path=os.path.join(self.vibe_dir(True),id + '.naiv4vibe')
         if not os.path.exists(path):
