@@ -142,11 +142,11 @@ async function (source){
     
     let ratio = img.width / img.height;
     
-    if(Math.abs(1536 / 1024 - ratio) < Math.abs(cvs.width / cvs.width - ratio)) {    
+    if(Math.abs(1536 / 1024 - ratio) < Math.abs(cvs.width / cvs.height - ratio)) {    
         cvs.width = 1536;
         cvs.height = 1024;    
     }
-    if(Math.abs(1 - ratio) < Math.abs(cvs.width / cvs.width - ratio)) {    
+    if(Math.abs(1 - ratio) < Math.abs(cvs.width / cvs.height - ratio)) {    
         cvs.width = 1472;
         cvs.height = 1472;    
     }
