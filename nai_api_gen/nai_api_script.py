@@ -191,6 +191,14 @@ class NAIGENScriptBase(scripts.Script):
             
             vibe_fields4,vibes_v4, normalize_reference_strength_multiple,normalize_negatives,normalize_level, *_ = self.vibe_v4_ui(model,vibe_fields)
 
+            with gr.Accordion(label='Character Reference', elem_id = f"nai_cref_{elempfx}", open=False):
+                crwarn = gr.HTML(value=f'<p>Always costs 5 tokens, Opus Free Gen Limit must be disabled to use.</p>',visible=True)
+                with gr.Row(variant="compact", elem_id = f"nai_cref1_{elempfx}"):
+                    cref_image_file = gr.Image(label=f"Source Image", elem_id=f"cref_image_{elempfx}", show_label=False, source="upload", interactive=True, type="pil", tool="editor", image_mode="RGBA")                        
+                    cref_style = gr.Checkbox(value=True, elem_id=f"cref_style_{elempfx}", label="Style Aware")    
+                cref_image=gr.Textbox(label=f"Character Reference Image Text Data", visible = False, value = "")
+                cref_image_file.change( fn=None, _js= nai_api.cr_processing_js, inputs=[cref_image_file], show_progress=False,outputs = [cref_image])
+            
             with gr.Accordion(label='Director Tools', elem_id = f"nai_aug_{elempfx}", open=False , visible = is_img2img):                   
                 with gr.Row(variant="compact", elem_id = f"nai_aug1_{elempfx}"):
                     augment_mode = gr.Dropdown(label="Augment Mode ",value="None",choices=["None",'recolorize',*nai_api.augment_modes])
@@ -204,6 +212,7 @@ class NAIGENScriptBase(scripts.Script):
                     with gr.Row(variant="compact", elem_id = f"nai_aug22_{elempfx}"):
                         reclrLvlLoOut=gr.Slider(minimum=0, maximum=255, step=1, label='Out:Black', value=0,min_width=64)
                         reclrLvlHiOut=gr.Slider(minimum=0, maximum=255, step=1, label='Out:White', value=255,min_width=64)
+                        reclrLvlAlpha=gr.Slider(minimum=0, maximum=1, step=0.01, label='Alpha', value=1.0,min_width=64)
                 bgwarn = gr.HTML(value=f'<p>Disable Opus Free Gen Limit to use bg-removal. Background removal always has a cost.</p>',visible=False)
                 augwarn = gr.HTML(value=f'<p>Prompt must not exceed 75 tokens or else generation will fail with a 500 Error.</p>',visible=False)
             def augchange(m,cl):
@@ -218,7 +227,7 @@ class NAIGENScriptBase(scripts.Script):
                     nai_denoise_strength=gr.Slider(minimum=0.0, maximum=1.0,step=0.01, label='Denoise strength', value=0.0)
                     keep_mask_for_local = gr.Checkbox(value=False, label="Keep inpaint mask for both passes")
             with gr.Accordion(label="Options", open=False):
-                cost_limiter = gr.Checkbox(value=True, label="Force Opus Free Gen Size/Step Limit")
+                cost_limiter = gr.Checkbox(value=True, label="Force Opus Free Gen Limits")
                 with gr.Row():
                     qualityToggle = gr.Radio(value="Off", label="Quality Preset",choices=["Off","On"],type="index") 
                     convert_prompts = gr.Dropdown(label="Convert Prompts for NAI ",value="Auto",choices=["Auto","Never","Always"])                   
@@ -277,6 +286,7 @@ class NAIGENScriptBase(scripts.Script):
             (reclrLvlMid, f'{PREFIX} '+ 'reclrLvlMid'),
             (reclrLvlLoOut, f'{PREFIX} '+ 'reclrLvlLoOut'),
             (reclrLvlHiOut, f'{PREFIX} '+ 'reclrLvlHiOut'),
+            (reclrLvlAlpha, f'{PREFIX} '+ 'reclrLvlAlpha'),
             (variety, f'{PREFIX} '+ 'variety'),
             (deliberate_euler_ancestral_bug, f'{PREFIX} eulera_bug'),
             (prefer_brownian, f'{PREFIX} prefer_brownian'),
@@ -323,7 +333,7 @@ class NAIGENScriptBase(scripts.Script):
         for _, field_name in self.infotext_fields:
             if isinstance(field_name, str): self.paste_field_names.append(field_name)
             
-        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,keep_mask_for_local,*vibe_fields4,*vibe_fields]
+        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,reclrLvlAlpha,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,cref_image,cref_style,keep_mask_for_local,*vibe_fields4,*vibe_fields]
 
     def vibe_v4_finalize(self,model,vibes_v4, vibe_fields4):
         v3_only_len = len(self.v3_only_ui)
@@ -548,7 +558,9 @@ class NAIGENScriptBase(scripts.Script):
             vibe = None
             
             if 'naivibeid' in source_image.info: vibe = self.load_vibe_file_by_id(source_image.info['naivibeid'])
-            if not vibe: vibe = nai_api.create_vibe_file(source_image,vibe_name)
+            if not vibe: 
+                if source_image.mode == 'RGBA': source_image = source_image.convert('RGB')
+                vibe = nai_api.create_vibe_file(source_image,vibe_name)
             message = AddVibes(model,{vibe['id']:vibe},ids,enabled)                    
             return [message or gr.update(), *ids, *enabled]
             
@@ -649,7 +661,7 @@ class NAIGENScriptBase(scripts.Script):
                 return gr.update(value=message), gr.update(value=[], visible = False), *ids, *ies, *sts, *ens
                 
             if mode == 7:
-                es = [None]*self.vibe_count_v4 
+                es = [None]*self.vibe_count_v4
                 found = 0
                 for i,v in enumerate([self.load_vibe_file_by_id(id) for id in ids]):
                     if not v or v.get('type',None) != 'encoding': continue
@@ -673,6 +685,34 @@ class NAIGENScriptBase(scripts.Script):
                     except Exception as e:
                         print("Error Reading naiv4vibe",e)
                 return gr.update(value=f"Found {found}"), gr.update(value=[], visible = False), *ids, *ies, *sts, *ens
+                
+            if mode == 8:
+                found = 0
+                for i,v in enumerate([self.load_vibe_file_by_id(id) for id in ids]):
+                    if not v or not ens[i] or v.get('type',None) != 'image': continue
+                    image = v.get('image', None)
+                    if not image: continue
+                    try:
+                        image = Image.open(BytesIO(base64.b64decode(image)))
+                        if image.mode == 'RGBA':
+                            found+=1
+                            image = image.convert('RGB')
+                            name = v.get('name', None)
+                            
+                            if name and '-' in name and not (v['id'].startswith(name.split('-',1)[0]) and v['id'].endswith(name.split('-',1)[1])):
+                                name = name + '-RGB'
+                            else:
+                                name = None
+                                
+                            vibe = nai_api.create_vibe_file(image,name)                            
+                            if not self.load_vibe_file_by_id(vibe['id']):
+                                vibe = self.update_vibe_file(vibe)
+                            ids[i] = vibe['id']
+                    except Exception as e:
+                        print("Error Reading naiv4vibe",e)
+
+                return gr.update(value=f"Found {found}"), gr.update(value=[], visible = False), *ids, *ies, *sts, *ens
+            
             
             vibes = [self.load_vibe_file_by_id(id) if ens[i] else None for i,id in enumerate(ids)]
             
@@ -1109,7 +1149,7 @@ class NAIGENScriptBase(scripts.Script):
             check_path(self.vibe_dir(True))
         return vibe
             
-    def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,keep_mask_for_local,*args):
+    def nai_configuration(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,reclrLvlAlpha,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,cref_image,cref_style,keep_mask_for_local,*args):
         if self.disabled: return        
         DEBUG_LOG(f'nai_configuration')   
 
@@ -1143,6 +1183,17 @@ class NAIGENScriptBase(scripts.Script):
             self.limit_costs(p, cost_limiter)
             self.adjust_resolution(p)
             self.setup_sampler_name(p, sampler,getattr(p,f'{PREFIX}_'+ 'noise_schedule',noise_schedule))
+            
+            
+        if cref_image:        
+            self.cref_image = cref_image
+            if cost_limiter:
+                self.comment(p,f"Cost Limiter: Disabling Character Reference.")
+                self.cref_image=None       
+            else: self.incurs_cost = True
+        else: self.cref_image = None
+
+
 
         if not self.isimg2img: do_local_img2img = 0
         elif isinstance(do_local_img2img,str):
@@ -1161,7 +1212,7 @@ class NAIGENScriptBase(scripts.Script):
         self.isV4 = '4' in self.model
         
         if do_local_img2img == 1 or do_local_img2img == 2:
-            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,keep_mask_for_local)
+            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,reclrLvlAlpha,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,cref_image,cref_style,keep_mask_for_local)
         else:
             p.disable_extra_networks=True
 
@@ -1176,7 +1227,7 @@ class NAIGENScriptBase(scripts.Script):
         p.denoising_strength = self.strength
         p.resize_mode = self.resize_mode
         
-    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,keep_mask_for_local,*args):    
+    def set_local(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,reclrLvlAlpha,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,cref_image,cref_style,keep_mask_for_local,*args):    
         if nai_resolution_scale> 0:
             p.width = int(p.width * nai_resolution_scale)
         p.height = int(p.height * nai_resolution_scale)
@@ -1193,7 +1244,7 @@ class NAIGENScriptBase(scripts.Script):
         images.save_image(image.copy(), path=shared.opts.outdir_init_images, basename=None, forced_filename=hash, save_to_dirs=False)
         return hash
 
-    def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,keep_mask_for_local,*args):
+    def nai_preprocess(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,reclrLvlAlpha,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,cref_image,cref_style,keep_mask_for_local,*args):
         if self.disabled: return
         
         self.restore_prompts(p)        
@@ -1312,7 +1363,10 @@ class NAIGENScriptBase(scripts.Script):
             
         if self.augment_mode == 'recolorize':
             for i in range(len(self.init_images)):
-                self.init_images[i] = nai_api.GrayLevels(self.init_images[i],reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut)
+                g = nai_api.GrayLevels(self.init_images[i],reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut)
+                if reclrLvlAlpha < 1:
+                    g = Image.blend(self.init_images[i],b.convert("RGB"),reclrLvlAlpha)
+                self.init_images[i] = g
         
         # TODO: Skip this when augment is enabled.
         self.reference_image = []
@@ -1320,6 +1374,7 @@ class NAIGENScriptBase(scripts.Script):
         self.reference_strength = []        
         self.use_v4_vibe = self.isV4 or shared.opts.nai_api_use_v4_for_v3
         self.normalize_reference_strength_multiple = self.use_v4_vibe and normalize_reference_strength_multiple
+
         if self.use_v4_vibe:
             vids, ies, sts, ens = [args[-(self.vibe_field_count+self.vibe_field_count_v4):-self.vibe_field_count][i*self.vibe_count_v4:(i+1)*self.vibe_count_v4] for i in range(self.vibe_field_count_v4//self.vibe_count_v4)]
             
@@ -1327,21 +1382,22 @@ class NAIGENScriptBase(scripts.Script):
                 id = getattr(p, f'{PREFIX}_VibeID_{i}', vids[i-1])
                 en = getattr(p, f'{PREFIX}_VibeOn_{i}', ens[i-1])
                 ie = getattr(p, f'{PREFIX}_VibeExtract_{i}', ies[i-1])
-                st = getattr(p, f'{PREFIX}_VibeStrength_{i}', sts[i-1])                
+                st = getattr(p, f'{PREFIX}_VibeStrength_{i}', sts[i-1])
+                print(sts[i-1],st)
                 ie = nai_api.tryfloat(ie,1.0)
                 st = nai_api.tryfloat(st,0.6)
-                if not id or not en: continue
+                if not id: continue
                 vibe = self.load_vibe_file_by_id(id)
                 if vibe is None:
                     self.comment(p,f"Could not find file for Vibe{i} ID: {id}")
                     en=False
-                elif not self.isV4:
+                elif not self.isV4 and en:
                     if not vibe.get('image', None):
                         self.comment(p,f"Skipping Encoding Only Vibe{i}, no image for for v3")
                         en = False
-                        continue
-                    self.reference_image.append(vibe['image'])
-                else:
+                    else: 
+                        self.reference_image.append(vibe['image'])
+                elif en:
                     if vibe.get('type',"") == 'encoding':
                         enc, ie = nai_api.get_closest_encoding(vibe, ie, self.model)
                         if not enc:
@@ -1364,16 +1420,19 @@ class NAIGENScriptBase(scripts.Script):
                                 ie = newie
                     if not enc:
                         self.comment(p,f"Skipping Vibe{i}, encoding does not exist")
-                        continue
-                    self.reference_image.append(enc)
+                        en = False
+                    else:
+                        self.reference_image.append(enc)
                     
-                self.reference_information_extracted.append(ie)
-                self.reference_strength.append(st)              
+                if en:
+                    self.reference_information_extracted.append(ie)
+                    self.reference_strength.append(st)
 
                 p.extra_generation_params[f'{PREFIX} Vibe On {i}'] = en
                 p.extra_generation_params[f'{PREFIX} Vibe ID {i}'] = id
                 p.extra_generation_params[f'{PREFIX} Vibe IE {i}'] = ie
                 p.extra_generation_params[f'{PREFIX} Vibe Strength {i}'] = st
+                
             if self.isV4 and self.cost_limiter and len(self.reference_image) > 4:
                 self.reference_image = self.reference_image[:4]
                 self.reference_information_extracted = self.reference_information_extracted[:4]
@@ -1382,14 +1441,14 @@ class NAIGENScriptBase(scripts.Script):
                 
             p.extra_generation_params[f'{PREFIX} '+ 'normalize_reference_strength'] = normalize_reference_strength_multiple          
             
-            if normalize_reference_strength_multiple and (normalize_negatives or normalize_level>0):
-                total = sum( max(0,n) if normalize_negatives else abs(n) for n in self.reference_strength)
+            if normalize_reference_strength_multiple and (normalize_negatives in [1,2] or normalize_level>0):
+                total = sum( max(0,n) if normalize_negatives in [1,2] else abs(n) for n in self.reference_strength)
                 if normalize_level and total > 0 or total > 1.0:
                     if normalize_level: total /= normalize_level
                     for i in range(len(self.reference_image)):
-                        if self.reference_strength[i] > 0 or normalize_negatives != 2: self.reference_strength[i] /= total                        
-                if normalize_negatives: p.extra_generation_params[f'{PREFIX} '+ 'normalize_negatives'] = normalize_negatives
-                if normalize_level: p.extra_generation_params[f'{PREFIX} '+ 'normalize_level'] = normalize_level
+                        if self.reference_strength[i] > 0 or normalize_negatives == 1: self.reference_strength[i] /= total                        
+                p.extra_generation_params[f'{PREFIX} '+ 'normalize_negatives'] = {1:"Zero",2:"Ignore"}.get(normalize_negatives,"Abs")
+                p.extra_generation_params[f'{PREFIX} '+ 'normalize_level'] = normalize_level
                 self.normalize_reference_strength_multiple = False
                 
         if not self.use_v4_vibe or not self.isV4 and not self.reference_image:
@@ -1453,7 +1512,7 @@ class NAIGENScriptBase(scripts.Script):
             prompt = ""
             text_tag = None
             for l in original_prompt.splitlines():
-                sp = l.split(':',maxsplit=2)                
+                sp = l.split(':',maxsplit=2)
                 tag = sp[0].strip().lower()
                 
                 if len(sp) > 1 and tag == "text":
@@ -1505,10 +1564,10 @@ class NAIGENScriptBase(scripts.Script):
         return create_infotext(p, p.all_prompts, p.all_seeds, p.all_subseeds, None, iteration, batch)
 
 
-    def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,keep_mask_for_local,*args):
+    def nai_generate_images(self,p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,reclrLvlAlpha,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,cref_image,cref_style,keep_mask_for_local,*args):
         if self.disabled or p.nai_processed is not None: return 
         DEBUG_LOG("nai_generate_images")
-        DEBUG_LOG(enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,keep_mask_for_local)
+        DEBUG_LOG(enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,reclrLvlAlpha,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,cref_image,cref_style,keep_mask_for_local)
         
         isimg2img=self.isimg2img
         do_local_img2img=self.do_local_img2img
@@ -1601,7 +1660,7 @@ class NAIGENScriptBase(scripts.Script):
             if self.augment_mode:
                 return nai_api.AugmentParams('colorize' if self.augment_mode == 'recolorize' else self.augment_mode,image,p.width,p.height,prompt,defry,emotion,seed)
                 
-            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]), overlay = False, mask = self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma,deliberate_euler_ancestral_bug=deliberate_euler_ancestral_bug,prefer_brownian=prefer_brownian, characterPrompts=chars,text_tag=text_tag,legacy_uc=legacy_uc,normalize_reference_strength_multiple=self.normalize_reference_strength_multiple)
+            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]), overlay = False, mask = self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma,deliberate_euler_ancestral_bug=deliberate_euler_ancestral_bug,prefer_brownian=prefer_brownian, characterPrompts=chars,text_tag=text_tag,legacy_uc=legacy_uc,normalize_reference_strength_multiple=self.normalize_reference_strength_multiple, director_reference_images = self.cref_image, director_reference_style=cref_style )
         
         
         shared.state.job_count = p.n_iter
@@ -1634,7 +1693,7 @@ class NAIGENScriptBase(scripts.Script):
             self.all_prompts = p.all_prompts.copy()
             self.all_negative_prompts = p.all_negative_prompts.copy()
             
-            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,keep_mask_for_local)
+            self.set_local(p,enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,reclrLvlAlpha,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,cref_image,cref_style,keep_mask_for_local)
                 
             p.init_images = self.images.copy()
             self.include_nai_init_images_in_results=True

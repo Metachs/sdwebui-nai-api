@@ -130,6 +130,38 @@ async function (source){
 }
 """
 
+cr_processing_js ="""
+async function (source){
+    if (!source) return "";
+    var img = new Image;
+    img.src = source;
+    await img.decode();
+    let cvs = document.createElement("canvas");
+    cvs.width = 1024;
+    cvs.height = 1536;    
+    
+    let ratio = img.width / img.height;
+    
+    if(Math.abs(1536 / 1024 - ratio) < Math.abs(cvs.width / cvs.width - ratio)) {    
+        cvs.width = 1536;
+        cvs.height = 1024;    
+    }
+    if(Math.abs(1 - ratio) < Math.abs(cvs.width / cvs.width - ratio)) {    
+        cvs.width = 1472;
+        cvs.height = 1472;    
+    }
+    
+    let width = ratio > cvs.width / cvs.height ? cvs.width : Math.round(cvs.height * ratio);
+    let height = ratio > cvs.width / cvs.height ? Math.round(cvs.width / ratio) : cvs.height;
+    
+    let ctx = cvs.getContext("2d");
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, cvs.width, cvs.height);
+    ctx.drawImage(img, (cvs.width - width) / 2, (cvs.height - height) / 2, width, height);
+	return cvs.toDataURL("image/png").split(",")[1];
+}
+"""
+
 def get_timeout(timeout, width, height, steps):
 
     histep = steps > 35
@@ -732,7 +764,7 @@ def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
     
     return payload
 
-def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = None , reference_strength = None,n_samples = 1,variety = False,skip_cfg_above_sigma = None,deliberate_euler_ancestral_bug=None,prefer_brownian=None, characterPrompts = None, text_tag = None, legacy_uc = False,normalize_reference_strength_multiple = False, color_correct = True):
+def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = None , reference_strength = None,n_samples = 1,variety = False,skip_cfg_above_sigma = None,deliberate_euler_ancestral_bug=None,prefer_brownian=None, characterPrompts = None, text_tag = None, legacy_uc = False,normalize_reference_strength_multiple = False, color_correct = True, director_reference_images = None, director_reference_style = True):
 
     params = {
         'params_version':3,
@@ -850,9 +882,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         for i in range(len(reference_image)):
             img = reference_image[i]
             if isinstance(img, Image.Image):
-                image_byte_array = BytesIO()
-                img.save(image_byte_array, format='PNG')
-                img = base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
+                img = B64Image(img)
             if img:
                 rextract = reference_information_extracted[i] if reference_information_extracted and len(reference_information_extracted) > i else 1.0
                 rstrength = reference_strength[i] if reference_strength and len(reference_strength) > i else 0.6
@@ -884,7 +914,18 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             cps.append(cp)
         params.update(characterPrompts= cps,v4_prompt= v4p,v4_negative_prompt=v4n,use_coords= bool(use_coords))
         params['legacy_uc'] = bool(legacy_uc)
+        
 
+        if director_reference_images:
+            if not isinstance(director_reference_images, list): director_reference_images = [director_reference_images]
+            params['director_reference_descriptions'] = [{'caption':{'base_caption': "character&style" if director_reference_style else "character",'char_captions':ccp }, 'legacy_uc':False }] * len(director_reference_images)
+            params['director_reference_images'] = [ B64Image(ir) if isinstance(ir, Image.Image) else ir for ir in director_reference_images]
+           
+            params['director_reference_information_extracted'] =[1] * len(director_reference_images)
+            params['director_reference_strength_values'] =[1] * len(director_reference_images)
+            if 'reference_image_multiple' in params: params.pop('reference_image_multiple')
+            if 'reference_strength_multiple' in params: params.pop('reference_strength_multiple')
+            
     params['negative_prompt'] = neg
     params['legacy_v3_extend'] = legacy_v3_extend
     params['scale'] = float(scale)
@@ -901,6 +942,13 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         params['autoSmea'] = sm
         
     return payload
+    
+def B64Image(img):
+    image_byte_array = BytesIO()
+    img.save(image_byte_array, format='PNG')
+    return base64.b64encode(image_byte_array.getvalue()).decode("utf-8")
+
+    
     
 def GrayLevels(image, inlo = 0, inhi = 255, mid = 128, outlo = 0, outhi = 255):
     from PIL import Image,ImageMath
