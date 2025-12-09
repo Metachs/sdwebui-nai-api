@@ -1198,7 +1198,7 @@ class NAIGENScriptBase(scripts.Script):
         else:
             self.cref_image = None
             self.cref_style = None
-            self.cref_fidel = None
+            self.cref_fidel = 0
 
 
 
