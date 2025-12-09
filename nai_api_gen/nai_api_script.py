@@ -613,7 +613,6 @@ class NAIGENScriptBase(scripts.Script):
             
             message = AddVibes(model,vibes,ids,enabled) if vibes else "Error: No Vibes found!"
             
-            # print([*ids, *enabled])
             return [None, message or gr.update(), *ids, *enabled]            
             
         self.vibe_cmds = ["Download...", 'Individual Encodings', 'Bundled Encodings', 'Embed in Images', 'Embed Bundle in Source Image','Delete Vibe with Name/ID From Cache', 'Copy Settings from V3 Fields', 'Try Match Encoding Only Vibes to Source']
@@ -651,7 +650,6 @@ class NAIGENScriptBase(scripts.Script):
             if mode == 6:
                 v3images, v3ies, v3strs = [args[self.vibe_count_v4*4 + self.vibe_count*i:self.vibe_count_v4*4 + self.vibe_count*(i+1)] for i in range(3)]
                 for i, img in enumerate(v3images):
-                    print (i)
                     if not img or i>=len(ids): continue
                     image_byte_array = BytesIO()
                     img.save(image_byte_array, format='PNG')
@@ -908,8 +906,6 @@ class NAIGENScriptBase(scripts.Script):
                     vibe = self.update_vibe_file(nai_api.create_vibe_file(img))
                 vid = vibe['id']
                 ieval = float(reference_information_extracted)
-                print (vid)
-                print (ieval)
             elif len(vid)> 2560: #ludicrously long id is probably a whole encoding. 
                 vibe = self.vibe_create_encoding(vid,model)
                 if vibe: vid = vibe['id']
@@ -1390,7 +1386,6 @@ class NAIGENScriptBase(scripts.Script):
                 en = getattr(p, f'{PREFIX}_VibeOn_{i}', ens[i-1])
                 ie = getattr(p, f'{PREFIX}_VibeExtract_{i}', ies[i-1])
                 st = getattr(p, f'{PREFIX}_VibeStrength_{i}', sts[i-1])
-                print(sts[i-1],st)
                 ie = nai_api.tryfloat(ie,1.0)
                 st = nai_api.tryfloat(st,0.6)
                 if not id: continue
@@ -1460,7 +1455,6 @@ class NAIGENScriptBase(scripts.Script):
                 
         if not self.use_v4_vibe or not self.isV4 and not self.reference_image:
             self.use_v4_vibe = False
-            print (len(self.reference_image))
             for i in range(1,1+self.vibe_count):
                 image = args[-(0 * self.vibe_count + i)]
                 vie = getattr(p, f'{PREFIX}_VibeExtract_{i}', args[-(1 * self.vibe_count + i)])
