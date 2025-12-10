@@ -58,7 +58,7 @@ def post_process_images(p,script,is_post):
             image.original_nai_image = None
             if pp and image != pp.image: r.images[i]=pp.image
             if not getattr(r.images[i],'is_original_image',False): 
-                if shared.opts.data.get("nai_api_save_original", True):
+                if shared.opts.data.get("nai_api_save_original", True) and not getattr(r.images[i],'nai_batch_image_saved',False):
                     images.save_image(original, p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info= "NovelAI" if nai_meta else r.infotexts[i], p=p,existing_info=existing_info.copy(), pnginfo_section_name= 'Software' if nai_meta else 'parameters')
                 if shared.opts.data.get('nai_api_include_original', False): 
                     r.images.append(original)
@@ -68,9 +68,11 @@ def post_process_images(p,script,is_post):
                     r.all_seeds.append(r.all_seeds[i])
                     r.all_subseeds.append(r.all_subseeds[i])
                 nai_meta = False
-            if save_images:
+            if save_images and not getattr(r.images[i],'nai_batch_image_saved',False):
                 DEBUG_LOG ("Save Image: " ,i)
                 images.save_image(r.images[i], p.outpath_samples, "", r.all_seeds[i], r.all_prompts[i], shared.opts.samples_format, info= "NovelAI" if nai_meta else r.infotexts[i], p=p,existing_info=existing_info.copy(), pnginfo_section_name= 'Software' if nai_meta else 'parameters')
+            if getattr(r.images[i],'nai_batch_image_saved',False): DEBUG_LOG("Skipped Saving Batch Image: " ,i)
+            
         p.scripts.postprocess(p, p.nai_processed) 
     finally: 
         if not is_post: script.in_post_process=False

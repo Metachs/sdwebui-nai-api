@@ -43,9 +43,9 @@ elempfx = 'txt2img'
 
 class NAIGENScriptBase(scripts.Script):
 
-    def __init__(self):    
+    def __init__(self):
         super().__init__()
-        self.NAISCRIPTNAME = "NAI"    
+        self.NAISCRIPTNAME = "NAI"
         self.images = []
         self.texts = []
         self.fragments = []
@@ -56,7 +56,7 @@ class NAIGENScriptBase(scripts.Script):
         self.failed=False
         self.failure=""
         self.running=True
-        self.do_nai_post=False        
+        self.do_nai_post=False
         self.in_post_process=False
         self.width = 0
         self.height = 0
@@ -1680,6 +1680,11 @@ class NAIGENScriptBase(scripts.Script):
                     self.images[i] = self.init_images[i] if self.init_images and i < len(self.init_images) else Image.new("RGBA",(p.width, p.height), color = "black")
                     self.images[i].is_transient_image = True
                     self.comment(p, f"Returned Dummy Image {i}:{len(self.images)}")
+                elif p.n_iter * p.batch_size > 1 and shared.opts.data.get('nai_api_save_during_batch', False):
+                    DEBUG_LOG("Save Image During Batch",i)
+                    nai_meta = shared.opts.data.get('nai_metadata_only', False)
+                    images.save_image(self.images[i], p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info= "NovelAI" if nai_meta else self.texts[i], p=p,existing_info=self.images[i].info.copy(), pnginfo_section_name = 'Software' if nai_meta else 'parameters')
+                    self.images[i].nai_batch_image_saved = True
                 elif isimg2img and getattr(p,"inpaint_full_res",False) and shared.opts.data.get('nai_api_save_fragments', False):
                     images.save_image(self.images[i], p.outpath_samples, "", p.all_seeds[i], p.all_prompts[i], shared.opts.samples_format, info=self.texts[i], suffix="-nai-init-image" if self.do_local_img2img != 0 else "")
             shared.state.job_no = len(self.images) // p.batch_size
