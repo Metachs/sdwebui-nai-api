@@ -64,8 +64,10 @@ class NAIGENScriptBase(scripts.Script):
         self.cfg = 0
         self.steps = 0
         self.strength = 0
+        self.ref_count = shared.opts.data.get('nai_api_ref_count',4)
         self.vibe_count = shared.opts.data.get('nai_api_vibe_count',4)
         self.vibe_count_v4 = shared.opts.data.get('nai_api_vibe_v4_count',4)
+        self.ref_field_count = self.ref_count*5
         self.vibe_field_count = self.vibe_count*3
         self.vibe_field_count_v4 = self.vibe_count_v4*4
         self.last_request_time = 0
@@ -122,6 +124,7 @@ class NAIGENScriptBase(scripts.Script):
                 self.v3_only_ui.append(smdyn)
             with gr.Row(visible = is_img2img):
                 extra_noise=gr.Slider(minimum=0.0, maximum=1.0 ,step=0.01, label='Noise', value=0.0)
+                            
             with gr.Row(visible = False) as charmsg:
                 gr.Markdown(
                     """<details>
@@ -191,7 +194,37 @@ class NAIGENScriptBase(scripts.Script):
             
             vibe_fields4,vibes_v4, normalize_reference_strength_multiple,normalize_negatives,normalize_level, *_ = self.vibe_v4_ui(model,vibe_fields)
 
-            with gr.Accordion(label='Character Reference', elem_id = f"nai_cref_{elempfx}", open=False):
+
+                
+            def doreffields(idx):
+                with gr.Row(variant="compact"):
+                    director_reference_image = gr.Image(label=f"Ref {idx}", elem_id=f"director_reference_image_{idx}", show_label=False, source="upload", interactive=True, type="pil", tool="editor", image_mode="RGBA",min_width=164)
+                    with gr.Column(min_width=64):
+                        director_reference_caption = gr.Dropdown(label=f'>{idx}',value="character&style",choices=["character&style","character","style",""],type="value", show_label=False)
+                        director_reference_strength=gr.Slider(minimum=-1.0, maximum=1.0, step=0.01, label=f'Strength {idx}', value=1.0,min_width=64)
+                        director_reference_fidelity=gr.Slider(minimum=0.0, maximum=1.0, step=0.01, label=f'Fidelity {idx}', value=1.0,min_width=64)
+
+                director_reference_image_text=gr.Textbox(label=f"Reference Image Text Data {idx}", visible = False, value = "")
+
+                director_reference_image.change( fn=None, _js= nai_api.cr_processing_js, inputs=[director_reference_image], show_progress=False,outputs = [director_reference_image_text])
+            
+                return director_reference_image,director_reference_fidelity,director_reference_strength,director_reference_image_text,director_reference_caption
+
+            ref_fields = []
+            
+            def doref(idx):
+                with gr.Accordion(label=f'Reference {idx+1}', open=False) : 
+                    fields = doreffields(idx+1)
+                    for fi in range(len(fields)):
+                        if fi >= len(ref_fields): ref_fields.append([])
+                        ref_fields[fi].append(fields[fi])
+                    if idx+1<self.ref_count: doref(idx+1)
+                    
+            with gr.Group(elem_id = f"nai_ref_{elempfx}", visible = True) as drefs:
+                doref(0)
+
+
+            with gr.Accordion(label='Reference', elem_id = f"nai_cref_{elempfx}", open=False, visible = False):
                 crwarn = gr.HTML(value=f'<p>Always costs 5 tokens, Opus Free Gen Limit must be disabled to use.</p>',visible=True)
                 with gr.Row(variant="compact", elem_id = f"nai_cref1_{elempfx}"):
                     cref_image_file = gr.Image(label=f"Source Image", elem_id=f"cref_image_{elempfx}", show_label=False, source="upload", interactive=True, type="pil", tool="editor", image_mode="RGBA")                       
@@ -200,6 +233,11 @@ class NAIGENScriptBase(scripts.Script):
                         cref_fidel = gr.Slider(minimum=0.0, maximum=1.0, value=1.0, elem_id=f"cref_fidel_{elempfx}", label="Fidelity")    
                 cref_image=gr.Textbox(label=f"Character Reference Image Text Data", visible = False, value = "")
                 cref_image_file.change( fn=None, _js= nai_api.cr_processing_js, inputs=[cref_image_file], show_progress=False,outputs = [cref_image])
+                
+
+                
+                
+                
             
             with gr.Accordion(label='Director Tools', elem_id = f"nai_aug_{elempfx}", open=False , visible = is_img2img):                   
                 with gr.Row(variant="compact", elem_id = f"nai_aug1_{elempfx}"):
@@ -305,29 +343,41 @@ class NAIGENScriptBase(scripts.Script):
                 return f'{PREFIX} {old_name}{i+1}'
             def func(d):
                 if key(i) in d: return d[key(i)]
-                if keyold(i) in d: return d[keyold(i)]
-                if i != 0 and f'reference_image_hash{i+1}' in d and key(0) in d:
+                if old_name and keyold(i) in d: return d[keyold(i)]
+                if old_name and i != 0 and f'reference_image_hash{i+1}' in d and key(0) in d:
                     return d[key(0)]
                 return None
             return func
 
-        def restorefunc(i):                        
+        def restorefunc(i,fieldname):                        
             def restore(d,name,oldname):
                 hash = d[name] if name in d else d[oldname] if oldname in d else None
                 if not hash: return None
                 imgp = os.path.join(shared.opts.outdir_init_images, f"{hash}.png")
                 return imgp if os.path.exists(imgp) else None
             def func(x):
-                return gr.update(value = restore(x, f'{PREFIX} Vibe Hash {i+1}',"reference_image_hash" if i==0 else f'reference_image_hash{i+1}'))
+                return gr.update(value = restore(x, f'{PREFIX} {fieldname} Hash {i+1}',"reference_image_hash" if i==0 else f'reference_image_hash{i+1}'))
             return func
+
 
         for i in range(self.vibe_count):        
             if shared.opts.outdir_init_images and os.path.exists(shared.opts.outdir_init_images):
-                self.infotext_fields.append((vibe_fields[0][i],restorefunc(i)))
+                self.infotext_fields.append((vibe_fields[0][i],restorefunc(i,"Vibe")))
             self.infotext_fields.append((vibe_fields[1][i],subvibeget('Vibe IE',i,'reference_information_extracted')))
             self.infotext_fields.append((vibe_fields[2][i],subvibeget('Vibe Strength',i,'reference_strength')))
         vibe_fields = [f for field in vibe_fields[::-1] for f in field[::-1]]
         self.vibe_field_count = len(vibe_fields)
+        
+            
+        for i in range(self.ref_count):        
+            if shared.opts.outdir_init_images and os.path.exists(shared.opts.outdir_init_images):
+                self.infotext_fields.append((ref_fields[0][i],restorefunc(i, "Reference")))
+            self.infotext_fields.append((ref_fields[1][i],subvibeget('Reference Fidelity',i,None)))
+            self.infotext_fields.append((ref_fields[2][i],subvibeget('Reference Strength',i,None)))
+            self.infotext_fields.append((ref_fields[4][i],subvibeget('Reference Caption',i,None)))
+            # self.infotext_fields.append((ref_fields[5][i],subvibeget('Reference IE',i,None)))
+        ref_fields = [f for field in ref_fields[::-1] for f in field[::-1]]
+        self.ref_field_count = len(ref_fields)        
         
         vibe_fields4 = self.vibe_v4_finalize(model, vibes_v4, vibe_fields4)
         
@@ -335,7 +385,7 @@ class NAIGENScriptBase(scripts.Script):
         for _, field_name in self.infotext_fields:
             if isinstance(field_name, str): self.paste_field_names.append(field_name)
             
-        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,reclrLvlAlpha,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,cref_image,cref_style,cref_fidel,keep_mask_for_local,*vibe_fields4,*vibe_fields]
+        return [enable,convert_prompts,cost_limiter,nai_post,disable_smea_in_post,model,sampler,noise_schedule,dynamic_thresholding,variety,smea,cfg_rescale,skip_cfg_above_sigma,qualityToggle,ucPreset,do_local_img2img,extra_noise,inpaint_mode,nai_resolution_scale,nai_cfg,nai_steps,nai_denoise_strength,legacy_v3_extend,augment_mode,defry,emotion,reclrLvlLo,reclrLvlHi,reclrLvlMid,reclrLvlLoOut,reclrLvlHiOut,reclrLvlAlpha,deliberate_euler_ancestral_bug,prefer_brownian,legacy_uc,normalize_reference_strength_multiple,normalize_negatives,normalize_level,cref_image,cref_style,cref_fidel,keep_mask_for_local,*ref_fields,*vibe_fields4,*vibe_fields]
 
     def vibe_v4_finalize(self,model,vibes_v4, vibe_fields4):
         v3_only_len = len(self.v3_only_ui)
@@ -1190,7 +1240,7 @@ class NAIGENScriptBase(scripts.Script):
             if cost_limiter:
                 self.comment(p,f"Cost Limiter: Disabling Character Reference.")
                 self.cref_image=None       
-            # else: self.incurs_cost = True
+            else: self.incurs_cost = True
         else:
             self.cref_image = None
             self.cref_style = None
@@ -1378,6 +1428,42 @@ class NAIGENScriptBase(scripts.Script):
         self.use_v4_vibe = self.isV4 or shared.opts.nai_api_use_v4_for_v3
         self.normalize_reference_strength_multiple = self.use_v4_vibe and normalize_reference_strength_multiple
 
+
+        self.reference_images = []
+        self.reference_strengths = []
+        self.reference_fidelity = []
+        self.reference_captions = []
+        
+        if self.isV4:            
+            
+            for i in range(1,1+self.ref_count): 
+                
+                image = args[-(self.vibe_field_count+self.vibe_field_count_v4+0 * self.ref_count + i)]
+                fid = args[-(self.vibe_field_count+self.vibe_field_count_v4+1 * self.ref_count + i)]
+                vstr = args[-(self.vibe_field_count+self.vibe_field_count_v4+2 * self.ref_count + i)]
+                txt = args[-(self.vibe_field_count+self.vibe_field_count_v4+3 * self.ref_count + i)]
+                cap = args[-(self.vibe_field_count+self.vibe_field_count_v4+4 * self.ref_count + i)]
+                          
+                
+                if image is None or not txt or not cap:
+                    continue
+                    
+                self.use_v4_vibe = False
+                
+                self.reference_captions.append(cap)
+                self.reference_fidelity.append(fid)
+                self.reference_strengths.append(vstr)
+                
+                self.reference_images.append(txt)
+            
+                p.extra_generation_params[f'{PREFIX} Reference Strength {i}'] = self.reference_strengths[-1]
+                p.extra_generation_params[f'{PREFIX} Reference Fidelity {i}'] = self.reference_fidelity[-1]
+                p.extra_generation_params[f'{PREFIX} Reference Caption {i}'] = self.reference_captions[-1]
+                
+                if image is not None:
+                    if shared.opts.data.get('save_init_img',False):
+                        p.extra_generation_params[f'{PREFIX} Reference Hash {i}'] = self.save_init_img(image)
+
         if self.use_v4_vibe:
             vids, ies, sts, ens = [args[-(self.vibe_field_count+self.vibe_field_count_v4):-self.vibe_field_count][i*self.vibe_count_v4:(i+1)*self.vibe_count_v4] for i in range(self.vibe_field_count_v4//self.vibe_count_v4)]
             
@@ -1453,7 +1539,7 @@ class NAIGENScriptBase(scripts.Script):
                 p.extra_generation_params[f'{PREFIX} '+ 'normalize_level'] = normalize_level
                 self.normalize_reference_strength_multiple = False
                 
-        if not self.use_v4_vibe or not self.isV4 and not self.reference_image:
+        if not self.use_v4_vibe and not self.reference_images or not self.isV4 and not self.reference_image:
             self.use_v4_vibe = False
             for i in range(1,1+self.vibe_count):
                 image = args[-(0 * self.vibe_count + i)]
@@ -1661,7 +1747,7 @@ class NAIGENScriptBase(scripts.Script):
             if self.augment_mode:
                 return nai_api.AugmentParams('colorize' if self.augment_mode == 'recolorize' else self.augment_mode,image,p.width,p.height,prompt,defry,emotion,seed)
                 
-            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]), overlay = False, mask = self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma,deliberate_euler_ancestral_bug=deliberate_euler_ancestral_bug,prefer_brownian=prefer_brownian, characterPrompts=chars,text_tag=text_tag,legacy_uc=legacy_uc,normalize_reference_strength_multiple=self.normalize_reference_strength_multiple, director_reference_images = self.cref_image, director_reference_style=self.cref_style, director_reference_secondary_strength_values = 1.0 - self.cref_fidel )
+            return nai_api.NAIGenParams(prompt, neg, seed=seed , width=p.width, height=p.height, scale=p.cfg_scale, sampler = self.sampler_name, steps=p.steps, noise_schedule=self.noise_schedule,sm= "smea" in str(smea).lower(), sm_dyn="dyn" in str(smea).lower(), cfg_rescale=cfg_rescale,uncond_scale=0 ,dynamic_thresholding=dynamic_thresholding,model=model,qualityToggle = qualityToggle == 1, ucPreset = ucPreset , noise = extra_noise, image = image, strength= p.denoising_strength,extra_noise_seed = seed if p.subseed_strength <= 0 else int(p.all_subseeds[i]), overlay = False, mask = self.mask if inpaint_mode!=1 else None,legacy_v3_extend=legacy_v3_extend, reference_image=self.reference_image,reference_information_extracted=self.reference_information_extracted,reference_strength=self.reference_strength,n_samples=n_samples,variety=variety,skip_cfg_above_sigma=skip_cfg_above_sigma,deliberate_euler_ancestral_bug=deliberate_euler_ancestral_bug,prefer_brownian=prefer_brownian, characterPrompts=chars,text_tag=text_tag,legacy_uc=legacy_uc,normalize_reference_strength_multiple=self.normalize_reference_strength_multiple, director_reference_images = self.reference_images, director_reference_descriptions=self.reference_captions, director_reference_secondary_strength_values = self.reference_fidelity, director_reference_strength_values = self.reference_strengths)
         
         
         shared.state.job_count = p.n_iter

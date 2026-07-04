@@ -758,7 +758,7 @@ def AugmentParams(mode, image, width, height, prompt, defry, emotion, seed=-1):
     
     return payload
 
-def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = None , reference_strength = None,n_samples = 1,variety = False,skip_cfg_above_sigma = None,deliberate_euler_ancestral_bug=None,prefer_brownian=None, characterPrompts = None, text_tag = None, legacy_uc = False,normalize_reference_strength_multiple = False, color_correct = True, director_reference_images = None, director_reference_style = True, director_reference_secondary_strength_values = 1.0):
+def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_schedule, dynamic_thresholding= False, sm= False, sm_dyn= False, cfg_rescale=0,uncond_scale =1,model =NAIv3 ,image = None, noise=None, strength=None ,extra_noise_seed=None, mask = None,qualityToggle=False,ucPreset = 2,overlay = False,legacy_v3_extend = False,reference_image = None, reference_information_extracted = None , reference_strength = None,n_samples = 1,variety = False,skip_cfg_above_sigma = None,deliberate_euler_ancestral_bug=None,prefer_brownian=None, characterPrompts = None, text_tag = None, legacy_uc = False,normalize_reference_strength_multiple = False, color_correct = True, director_reference_images = None, director_reference_descriptions = None, director_reference_secondary_strength_values = 1.0, director_reference_strength_values = 1.0, director_reference_information_extracted = None):
 
     params = {
         'params_version':3,
@@ -799,8 +799,9 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
             prefer_brownian = True if prefer_brownian is None else prefer_brownian
 
         params['noise_schedule'] = noise_schedule
-        params['deliberate_euler_ancestral_bug'] = bool(deliberate_euler_ancestral_bug)
-        params['prefer_brownian'] = bool(prefer_brownian)  
+        
+        if deliberate_euler_ancestral_bug is not None: params['deliberate_euler_ancestral_bug'] = bool(deliberate_euler_ancestral_bug)
+        if prefer_brownian is not None: params['prefer_brownian'] = bool(prefer_brownian)  
     
     if isV3plus: params['cfg_rescale'] = float(cfg_rescale)
     
@@ -869,7 +870,7 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     else:
         action = 'generate'
         
-    if reference_image is not None:
+    if reference_image is not None and not director_reference_images:
         imgs=[]
         rextracts=[]
         rstrengths= []
@@ -911,15 +912,25 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
         
 
         if director_reference_images:
-            if not isinstance(director_reference_images, list): director_reference_images = [director_reference_images]
-            if not isinstance(director_reference_secondary_strength_values, list): director_reference_secondary_strength_values = [director_reference_secondary_strength_values] * len(director_reference_images)
+            # if not isinstance(director_reference_images, list): director_reference_images = [director_reference_images]
+            # if not isinstance(director_reference_secondary_strength_values, list): director_reference_secondary_strength_values = [director_reference_secondary_strength_values] * len(director_reference_images)
+            # if not isinstance(director_reference_strength_values, list): director_reference_strength_values = [director_reference_strength_values] * len(director_reference_images)
+            # if not isinstance(director_reference_descriptions, list): director_reference_descriptions = [director_reference_descriptions] * len(director_reference_images)
             
-            params['director_reference_descriptions'] = [{'caption':{'base_caption': "character&style" if director_reference_style else "character",'char_captions':ccp }, 'legacy_uc':False }] * len(director_reference_images)
+            params['director_reference_descriptions'] = []
+            
+            for i in range(len(director_reference_descriptions)):
+                # params['director_reference_descriptions'].append({'caption':{'base_caption': director_reference_descriptions[i],'char_captions':ccp }, 'legacy_uc':False })
+                params['director_reference_descriptions'].append({'caption':{'base_caption': director_reference_descriptions[i],'char_captions':[] }, 'legacy_uc':False })
+                
+            
+            # params['director_reference_descriptions'] = [{'caption':{'base_caption': "character&style" if director_reference_style else "character",'char_captions':ccp }, 'legacy_uc':False }] * len(director_reference_images)
+            
             params['director_reference_images'] = [ B64Image(ir) if isinstance(ir, Image.Image) else ir for ir in director_reference_images]
            
-            params['director_reference_information_extracted'] =[1] * len(director_reference_images)
-            params['director_reference_strength_values'] =[1] * len(director_reference_images)
-            params['director_reference_secondary_strength_values'] = director_reference_secondary_strength_values
+            params['director_reference_information_extracted'] = [1] * len(director_reference_images)
+            params['director_reference_secondary_strength_values'] = [1.0 - (f or 1.0) for f in director_reference_secondary_strength_values]
+            params['director_reference_strength_values'] = director_reference_strength_values
             
             if 'reference_image_multiple' in params: params.pop('reference_image_multiple')
             if 'reference_strength_multiple' in params: params.pop('reference_strength_multiple')
