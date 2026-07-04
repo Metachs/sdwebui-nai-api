@@ -284,7 +284,7 @@ def GPOST( params , attempts = 0, timeout = 120, wait_on_429 = 0, wait_on_429_ti
 
 def GET(key, attempts = 5, timeout = 30):          
     try:
-        r = requests.get('https://api.novelai.net/user/subscription',headers=get_headers(key), timeout= timeout)
+        r = requests.get('https://image.novelai.net/user/subscription',headers=get_headers(key), timeout= timeout)
         if attempts > 0 and r is not None and r.status_code!= 200 and r.status_code not in TERMINAL_ERRORS:
             print(f"Request failed with error code: {r.status_code}, Retrying")
             return GET(key, attempts = attempts - 1 , timeout=timeout)
@@ -310,17 +310,11 @@ def subscription_info(key):
         return None,404,False,0,0
     if response.status_code==200:
         content = response.json()
-        def max_unlimited():
-            max = 0
-            for l in content['perks']['unlimitedImageGenerationLimits']:
-                if l['maxPrompts'] > 0 and l['resolution'] >= max: max = l['resolution']
-            return max
-        max = max_unlimited()
-        active = content['active']        
-        unlimited = active and max >= 1048576        
-        points = content['trainingStepsLeft']['fixedTrainingStepsLeft']+content['trainingStepsLeft']['purchasedTrainingSteps']        
-        return content, response.status_code, unlimited, points, max 
-    else: print (response.status_code)
+        active = content['active']
+        unlimited = active and content['perks']['unlimitedMaxPriority']
+        points = content['trainingStepsLeft']['fixedTrainingStepsLeft']+content['trainingStepsLeft']['purchasedTrainingSteps']
+        return content, response.status_code, unlimited, points, content 
+    else: print (response, response.json())
     return None,response.status_code,False,0,0
 
 def tryfloat(value, default = None):
