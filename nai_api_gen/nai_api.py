@@ -82,7 +82,10 @@ v45cpucL = 'blurry, lowres, upscaled, artistic error, scan artifacts, jpeg artif
 v45cpucHu = 'blurry, lowres, upscaled, artistic error, film grain, scan artifacts, bad anatomy, bad hands, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, halftone, multiple views, logo, too many watermarks, @_@, mismatched pupils, glowing eyes, negative space, blank page'
 
 v45uc = 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page'
+
 v45ucL = 'lowres, artistic error, scan artifacts, worst quality, bad quality, jpeg artifacts, multiple views, very displeasing, too many watermarks, negative space, blank page'
+
+v5ucL = 'lowres, bad hands, bad anatomy, artistic error, sepia, white haze, worst quality, very displeasing, jpeg artifacts, 0::ai-generated::'
 
 v45ucHu = 'lowres, artistic error, film grain, scan artifacts, worst quality, bad quality, jpeg artifacts, very displeasing, chromatic aberration, dithering, halftone, screentone, multiple views, logo, too many watermarks, negative space, blank page, @_@, mismatched pupils, glowing eyes, bad anatomy'
 
@@ -96,7 +99,7 @@ ucPresets = {
     NAIv4cp: [v4cpuc,v4cpucL],
     NAIv45: [v45uc,v45ucL,v45ucFu,v45ucHu],
     NAIv45cp: [v45cpuc,v45cpucL,v45cpucHu],
-    NAIv5: [v45uc,v45ucL,v45ucFu,v45ucHu],
+    NAIv5: [v45uc,v5ucL,v45ucFu,v45ucHu],
     NAIv5cp: [v45cpuc,v45cpucL,v45cpucHu],
 }
 
@@ -1037,7 +1040,7 @@ def parse_prompt_attention(text, weights_only = True):
         elif text == '[':
             square_brackets.append(len(res))
         elif weight is not None and round_brackets:
-            if tryfloat(weight): multiply_range(round_brackets.pop(), float(weight))
+            if tryfloat(weight) is not None: multiply_range(round_brackets.pop(), float(weight))
             else: apply_range(round_brackets.pop(), '(',text, round_bracket_multiplier)
         elif text == ')' and round_brackets:
             apply_range(round_brackets.pop(), '(',')', round_bracket_multiplier)
