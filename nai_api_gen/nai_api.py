@@ -33,12 +33,13 @@ NAIv4 = "nai-diffusion-4-full"
 NAIv45 = "nai-diffusion-4-5-full"
 NAIv5 = "nai-diffusion-5-full"
 NAIv5cp = "nai-diffusion-5-curated"
+NAIv5m = "nai-diffusion-5-full-medium"
 
 NAI_IMAGE_URL = 'https://image.novelai.net/ai/generate-image'
 NAI_AUGMENT_URL = 'https://image.novelai.net/ai/augment-image'
 NAI_STREAM_URL = 'https://image.novelai.net/ai/generate-image-stream'
 
-nai_models = [NAIv5,NAIv5cp,NAIv45,NAIv4f,NAIv45cp,NAIv4cp,NAIv3,NAIv3f,NAIv2]
+nai_models = [NAIv5,NAIv5m,NAIv5cp,NAIv45,NAIv4f,NAIv45cp,NAIv4cp,NAIv3,NAIv3f]
 
 NAI_SAMPLERS = ["k_euler","k_euler_ancestral","k_dpmpp_2s_ancestral","k_dpmpp_2m","ddim","k_dpmpp_sde","k_dpmpp_2m_sde"]
 noise_schedules = ["exponential","polyexponential","karras","native"]
@@ -788,14 +789,21 @@ def NAIGenParams(prompt, neg, seed, width, height, scale, sampler, steps, noise_
     if type(cfg_rescale) != float and type (cfg_rescale) != int: cfg_rescale = 0.0
     if prompt == "": prompt = " "
     
-    if model not in nai_models: model = NAIv3
+    if model not in nai_models: model = NAIv45
     
-    isV5 = model == NAIv5cp or model == NAIv5
+    isV5 = model == NAIv5cp or model == NAIv5 or model == NAIv5m
     isV4 = model == NAIv4cp or model == NAIv4f or model == NAIv45cp or model == NAIv45 or isV5
     isV3plus = model == NAIv3 or model == NAIv3f or isV4
     
     if isV4 and text_tag is None and nai_text_tag in prompt:
         prompt, text_tag = prompt.split(' Text:',1)
+        
+    if '-medium' in model:
+        steps = 14
+        neg = ""
+        ucPreset = 0
+        sampler = "k_euler_ancestral"
+        noise_schedule = "karras"        
     
     if "ddim" in sampler.lower():
         sampler = "ddim_v3" if isV3 else "ddim"
